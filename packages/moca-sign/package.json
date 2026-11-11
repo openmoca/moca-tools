@@ -16,7 +16,7 @@
   "dependencies": {
     "@openmoca/moca-core": "^0.6.0",
     "commander": "^12.1.0",
-    "sigstore": "^5.0.0"
+    "sigstore": "^5.0.1"
   },
   "publishConfig": {
     "access": "public"
