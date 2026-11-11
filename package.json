@@ -1,0 +1,17 @@
+{
+  "name": "moca-tools",
+  "private": true,
+  "version": "0.6.0",
+  "description": "MOCA lint, index and sign tools.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "node --test \"packages/*/test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

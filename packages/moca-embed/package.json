@@ -1,0 +1,41 @@
+{
+  "name": "@openmoca/moca-embed",
+  "version": "0.6.0",
+  "description": "MOCA's standard embedding models, run locally, for semantic and hybrid search over MOCA packages.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "moca-embed": "./bin/moca-embed.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "4.3.2",
+    "commander": "^12.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openmoca/moca-tools.git",
+    "directory": "packages/moca-embed"
+  },
+  "homepage": "https://github.com/openmoca/moca-tools/tree/main/packages/moca-embed#readme",
+  "bugs": {
+    "url": "https://github.com/openmoca/moca-tools/issues"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  }
+}

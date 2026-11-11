@@ -1,0 +1,22 @@
+# A generic, unconfigured Cloudflare Workers target for moca-lint: POST a .moca
+# archive to /lint. Run your own: see ../README.md, "Run it on Cloudflare
+# Workers". Nothing here names an account, a route or a limit.
+name = "moca-lint"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+# The Reader uses Buffer, zlib and crypto from Node's API.
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Limits for an upload, in bytes and entries. Empty: moca-lint's defaults
+# (10 MB body, 5,000 entries, 64 MB expanded).
+# MOCA_LINT_MAX_BODY_BYTES = "10485760"
+# MOCA_LINT_MAX_ENTRIES = "5000"
+# MOCA_LINT_MAX_BYTES = "67108864"
+
+# Optional: a rate limit per client address, with Cloudflare's rate limiting
+# binding. Uncomment and set your own namespace_id and limits.
+# [[ratelimits]]
+# name = "RATE_LIMITER"
+# namespace_id = "1002"
+# simple = { limit = 10, period = 60 }

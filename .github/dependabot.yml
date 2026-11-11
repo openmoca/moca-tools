@@ -1,0 +1,13 @@
+# Weekly update PRs, and immediate PRs for security advisories.
+# npm updates resolve against the lockfile only: the file: links to sibling
+# MOCA repositories stay as they are until those packages are on npm.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

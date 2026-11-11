@@ -1,0 +1,48 @@
+{
+  "name": "@openmoca/moca-lint",
+  "version": "0.6.0",
+  "description": "Check, pack and extract MOCA packages using the reference Reader.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "moca-lint": "./bin/moca-lint.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:workers": "node --test workers/workers.test.mjs"
+  },
+  "dependencies": {
+    "@openmoca/moca-core": "file:../../../moca-reader-typescript",
+    "adm-zip": "^0.6.0",
+    "commander": "^12.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openmoca/moca-tools.git",
+    "directory": "packages/moca-lint"
+  },
+  "homepage": "https://github.com/openmoca/moca-tools/tree/main/packages/moca-lint#readme",
+  "bugs": {
+    "url": "https://github.com/openmoca/moca-tools/issues"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./lib/index.js",
+    "./http": "./lib/http.js",
+    "./lib/*": "./lib/*",
+    "./package.json": "./package.json"
+  },
+  "devDependencies": {
+    "wrangler": "4.156.0"
+  }
+}

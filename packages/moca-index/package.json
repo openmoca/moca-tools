@@ -1,0 +1,44 @@
+{
+  "name": "@openmoca/moca-index",
+  "version": "0.6.0",
+  "description": "Build moca-jsonl-v1 sidecar indexes for MOCA packages.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "moca-index": "./bin/moca-index.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@openmoca/moca-core": "file:../../../moca-reader-typescript",
+    "@openmoca/moca-embed": "0.6.0",
+    "adm-zip": "^0.6.0",
+    "commander": "^12.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openmoca/moca-tools.git",
+    "directory": "packages/moca-index"
+  },
+  "homepage": "https://github.com/openmoca/moca-tools/tree/main/packages/moca-index#readme",
+  "bugs": {
+    "url": "https://github.com/openmoca/moca-tools/issues"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./lib/index.js",
+    "./lib/*": "./lib/*",
+    "./package.json": "./package.json"
+  }
+}
