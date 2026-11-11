@@ -17,7 +17,7 @@
     "@openmoca/moca-core": "^0.6.0",
     "@openmoca/moca-embed": "0.6.0",
     "adm-zip": "^0.6.0",
-    "commander": "^12.1.0"
+    "commander": "^15.1.0"
   },
   "publishConfig": {
     "access": "public"
