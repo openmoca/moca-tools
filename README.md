@@ -15,20 +15,15 @@ The specification is in [moca-spec](https://github.com/openmoca/moca-spec).
 
 ## Develop
 
-The tests read moca-spec's examples and fixtures. Check out moca-spec and
-moca-reader-typescript beside this repository, or set `MOCA_SPEC_DIR`.
+The tests read moca-spec's examples and fixtures. Check out moca-spec beside
+this repository, or set `MOCA_SPEC_DIR`.
 CI uses the tags pinned at the top of `.github/workflows/test.yml`
 (`MOCA_SPEC_REF` and the like); check out the same tags to match it.
 
 ```sh
-(cd ../moca-reader-typescript && npm install)
 npm install
 npm test
 ```
-
-Until `@openmoca/moca-core` is on npm, each package depends on it as
-`file:../../../moca-reader-typescript`. Change these to a version range before
-the first publish.
 
 ## Release
 

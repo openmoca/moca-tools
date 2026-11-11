@@ -14,7 +14,7 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@openmoca/moca-core": "file:../../../moca-reader-typescript",
+    "@openmoca/moca-core": "^0.6.0",
     "@openmoca/moca-embed": "0.6.0",
     "adm-zip": "^0.6.0",
     "commander": "^12.1.0"
