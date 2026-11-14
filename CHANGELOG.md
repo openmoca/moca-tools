@@ -12,6 +12,19 @@ For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/
   when the manifest's `distribution` is `encrypted-only`. `info` shows
   `distribution`.
 
+### Added (moca-sign, moca-index, moca-lint: encrypted packages)
+
+- `moca-sign encrypt`: envelopes with age v1 to X25519 recipients or one
+  passphrase (from an environment variable only); the outline fields by
+  choice, default `id,version,title`; `--structure` opt-in with a warning.
+  The age encryptor is on `node:crypto`; its output is checked by the Go age
+  CLI in the tests.
+- `moca-sign decrypt`: opens an envelope with every Reader check, then
+  writes the plain `.moca`.
+- `moca-index build --envelope`: adds `index.age` for the same recipients.
+- `moca-lint lint` and `info`: `--identity` and `--passphrase-env` open an
+  envelope; without them an envelope reports `E001`, with a hint.
+
 ### Changed
 
 - While the proposal is open, the packages depend on the sibling

@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path';
 import AdmZip from 'adm-zip';
 import { readPackage, bindSidecar, PORTABLE_FORMAT } from '@openmoca/moca-core';
+import { ageEncrypt } from '@openmoca/moca-sign';
 
 export class IndexError extends Error {}
 
@@ -118,7 +119,8 @@ function byteCounter(t) {
  * @param {boolean} [p.force]
  * @param {{ name: string, version?: string, dimensions: number, queryPrefix?: string, documentPrefix?: string, embed: (texts: string[], options?: { role: 'query'|'document' }) => number[][]|Promise<number[][]> }} [p.embedder]
  */
-export async function buildSidecar({ pkg, out, zip = false, chunker = 'node', maxChars, overlap = 0, force = false, embedder }) {
+/** The sidecar's files, in memory, for a valid package: { result, files, items }. */
+async function sidecarFiles({ pkg, chunker = 'node', maxChars, overlap = 0, embedder }) {
   if (!CHUNKERS.includes(chunker)) throw new IndexError(`unknown chunker "${chunker}"; use ${CHUNKERS.join(' or ')}`);
   if (maxChars !== undefined && !(Number.isInteger(maxChars) && maxChars >= 100)) throw new IndexError('--max-chars must be a whole number, at least 100');
   if (!(Number.isInteger(overlap) && overlap >= 0)) throw new IndexError('--overlap must be a whole number, 0 or more');
@@ -184,6 +186,11 @@ export async function buildSidecar({ pkg, out, zip = false, chunker = 'node', ma
     'payload/items.jsonl': Buffer.from(`${items.map((i) => JSON.stringify(i)).join('\n')}\n`, 'utf8'),
   };
   if (vectors) files['payload/vectors.f32'] = float32Bytes(vectors, embedder.dimensions);
+  return { result, files, items };
+}
+
+export async function buildSidecar({ pkg, out, zip = false, chunker = 'node', maxChars, overlap = 0, force = false, embedder }) {
+  const { result, files, items } = await sidecarFiles({ pkg, chunker, maxChars, overlap, embedder });
 
   if (existsSync(out) && !force && (!zip ? readdirSync(out).length > 0 : true)) {
     throw new IndexError(`${out} already exists; pass --force to replace it`);
@@ -211,4 +218,40 @@ export function float32Bytes(vectors, dimensions) {
   const buf = Buffer.alloc(vectors.length * dimensions * 4);
   vectors.forEach((v, i) => v.forEach((x, d) => buf.writeFloatLE(x, (i * dimensions + d) * 4)));
   return buf;
+}
+
+/**
+ * Builds a sidecar for a plain package and adds it to that package's envelope as index.age, encrypted to the same
+ * recipients (moca-spec encrypted packages §6). Only the Producer knows the recipients, so it passes them again.
+ * The index is checked against the package before it is encrypted; nothing plain is written to disk.
+ * @param {{ pkg: string, envelope: string, recipients?: string[], passphrase?: string, workFactor?: number,
+ *   chunker?: string, maxChars?: number, overlap?: number, embedder?: object, force?: boolean }} p
+ */
+export async function addEnvelopeIndex({ pkg, envelope, recipients = [], passphrase, workFactor, force = false, ...build }) {
+  const { result, files, items } = await sidecarFiles({ pkg, ...build });
+  const env = new AdmZip(envelope);
+  const marker = env.getEntry('moca-enc.json');
+  if (!marker || !env.getEntry('package.age')) throw new IndexError(`${envelope} is not an envelope`);
+  if (env.getEntry('index.age') && !force) throw new IndexError(`${envelope} already has an index.age; pass --force to replace it`);
+  // The outline, when present, must describe this package, or the index belongs elsewhere.
+  const outline = JSON.parse(marker.getData().toString('utf8')).outline ?? {};
+  for (const k of ['id', 'version']) {
+    if (outline[k] !== undefined && outline[k] !== result.manifest[k]) throw new IndexError(`the envelope's outline ${k} is ${outline[k]}, the package's is ${result.manifest[k]}`);
+  }
+  const sidecar = new AdmZip();
+  for (const [name, bytes] of Object.entries(files)) sidecar.addFile(name, bytes);
+  const plain = sidecar.toBuffer();
+  const check = bindSidecar(plain, result);
+  if (!check.usable) throw new IndexError(`the built sidecar failed its own check: ${check.diagnostics.map((d) => d.message).join('; ')}`);
+  let sealed;
+  try {
+    sealed = ageEncrypt(plain, { recipients, passphrase, workFactor });
+  } catch (err) {
+    throw new IndexError(err.message);
+  }
+  if (env.getEntry('index.age')) env.deleteFile('index.age');
+  env.addFile('index.age', sealed);
+  env.getEntry('index.age').header.method = 0;
+  env.writeZip(envelope);
+  return { envelope, items: items.length, digest: result.digest };
 }

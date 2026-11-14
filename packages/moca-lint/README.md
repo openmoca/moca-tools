@@ -34,6 +34,12 @@ page is neither `status: deprecated` nor bounded by its own `moca.valid_until`.
 Structure never hides content, so that page is still retrieved. The warning
 names the replacing concept and the pages bound to it.
 
+**Envelopes** (moca-spec encrypted packages). `lint` and `info` read a
+`.moca.enc` like a Reader: without a key they check the entries and
+`moca-enc.json` and report `E001`; with `--identity <file>` or
+`--passphrase-env <name>` they open it, run the outline check and lint the
+package inside.
+
 `pack` adds `LINT_DISTRIBUTION_PACKED_PLAIN` (warning; an error with
 `--strict`) when the manifest's `distribution` is `encrypted-only`: such a
 package is meant to be handed out only encrypted. Pack it, then encrypt it.

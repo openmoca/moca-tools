@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@openmoca/moca-core": "file:../../../moca-reader-typescript",
+    "adm-zip": "^0.6.0",
     "commander": "^12.1.0",
     "sigstore": "^5.0.0"
   },

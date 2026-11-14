@@ -5,8 +5,15 @@ Builds [sidecar indexes](https://github.com/openmoca/moca-spec/blob/main/spec/mo
 
 ```sh
 moca-index build <package> -o <out> [--zip] [--chunk node|headings] [--max-chars n [--overlap n]] [--force] [--model name [--models folder]] [--embedder module]
+moca-index build <package> --envelope <file.moca.enc> (-r <age1...>... | -R <file>... | --passphrase-env <name>) [build options]
 moca-index check <sidecar> --package <package>
 ```
+
+With `--envelope`, the index is built from the plain package and added to
+that package's envelope as `index.age`, encrypted to the recipients you pass
+(the same as the envelope's: only you know them). Nothing plain is written to
+disk. A Reader opens it through the same key provider
+(moca-spec encrypted packages §6).
 
 - `--chunk node` indexes each node representation whole; `--chunk headings`
   splits at level 1-3 headings. Every chunk records UTF-8 byte offsets into its

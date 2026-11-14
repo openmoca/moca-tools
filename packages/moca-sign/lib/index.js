@@ -137,3 +137,7 @@ export async function verifyPackage({ dir, trustRoot, online = false, allowOffli
     && pkg.signers.length > 0;
   return { ok, attestations, diagnostics: pkg.diagnostics, digest: pkg.digest, signers: pkg.signers };
 }
+export { ageEncrypt, decodeRecipient, EncryptError } from './age-encrypt.js';
+export {
+  encryptPackage, decryptEnvelope, readIdentities, readRecipients, passphraseFromEnv, parseOutlineFields, OUTLINE_FIELDS, DEFAULT_OUTLINE,
+} from './envelope.js';

@@ -6,6 +6,7 @@ import {
   generateKeyPair, signPackage, reviewNodes, verifyPackage, SignError,
   readTrustRoot, writeTrustRoot, addKey, addSigstoreIdentity, removeEntry, describeTrustRoot, checkPublicKey,
   parseRoles, parseExpires, TrustRootError,
+  encryptPackage, decryptEnvelope, readIdentities, readRecipients, passphraseFromEnv, parseOutlineFields, EncryptError, DEFAULT_OUTLINE,
 } from '../lib/index.js';
 import { formatText } from '../lib/deps.js';
 
@@ -154,11 +155,46 @@ program.command('verify')
     process.exitCode = result.ok ? 0 : 1;
   }));
 
+program.command('encrypt')
+  .description('write an envelope: the package encrypted with age v1 (moca-spec encrypted packages)')
+  .argument('<package>', 'package directory or .moca archive; it must be valid')
+  .requiredOption('-o, --out <file>', 'envelope to write, conventionally <name>.moca.enc')
+  .option('-r, --recipient <age1...>', 'an X25519 recipient; repeat for several', (v, a) => [...a, v], [])
+  .option('-R, --recipients-file <file>', 'a file of recipients, one per line; repeat for several', (v, a) => [...a, v], [])
+  .option('--passphrase-env <name>', 'encrypt to one passphrase read from this environment variable (never from the command line)')
+  .option('--work-factor <n>', 'scrypt work factor for a passphrase, log2 N; Readers refuse over 20 by default', (v) => Number.parseInt(v, 10), 18)
+  .option('--outline <fields>', `manifest fields left readable, comma-separated (default ${DEFAULT_OUTLINE.join(',')})`)
+  .option('--no-outline', 'leave no manifest field readable')
+  .option('--structure', 'also leave structure.ttl readable (reveals the concept graph)', false)
+  .option('--force', 'replace an existing output', false)
+  .action((pkg, opts) => run(async () => {
+    const recipients = [...opts.recipient, ...readRecipients(opts.recipientsFile)];
+    const passphrase = opts.passphraseEnv ? passphraseFromEnv(opts.passphraseEnv) : undefined;
+    const outline = opts.outline === false ? [] : typeof opts.outline === 'string' ? parseOutlineFields(opts.outline.split(',').map((s) => s.trim()).filter(Boolean)) : DEFAULT_OUTLINE;
+    const r = await encryptPackage({ pkg, out: opts.out, recipients, passphrase, workFactor: opts.workFactor, outline, structure: opts.structure, force: opts.force });
+    for (const w of r.warnings) console.error(`moca-sign: warning: ${w}`);
+    console.log(`Wrote ${r.out}\n${r.digest}\noutline: ${r.outline ? JSON.stringify(r.outline) : 'none'}`);
+  }));
+
+program.command('decrypt')
+  .description('open an envelope as a Reader does, then WRITE THE PLAIN .moca TO DISK (a Producer tool; Readers never write plaintext)')
+  .argument('<envelope>', 'envelope (.moca.enc)')
+  .requiredOption('-o, --out <file>', 'the .moca archive to write')
+  .option('-i, --identity <file>', 'an age identity file (AGE-SECRET-KEY-1...); repeat for several', (v, a) => [...a, v], [])
+  .option('--passphrase-env <name>', 'read the passphrase from this environment variable')
+  .option('--force', 'replace an existing output', false)
+  .action((envelope, opts) => run(async () => {
+    const identities = opts.identity.length > 0 ? readIdentities(opts.identity) : undefined;
+    const passphrase = opts.passphraseEnv ? passphraseFromEnv(opts.passphraseEnv) : undefined;
+    const r = await decryptEnvelope({ envelope, out: opts.out, identities, passphrase, force: opts.force });
+    console.log(`Wrote ${r.out}\n${r.digest}${r.valid ? '' : '\n(the package inside is not valid; run moca-lint on it)'}`);
+  }));
+
 async function run(fn) {
   try {
     await fn();
   } catch (err) {
-    if (err instanceof SignError || err instanceof TrustRootError) {
+    if (err instanceof SignError || err instanceof TrustRootError || err instanceof EncryptError) {
       console.error(`moca-sign: ${err.message}`);
       process.exit(2);
     }
