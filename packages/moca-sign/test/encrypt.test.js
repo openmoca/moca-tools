@@ -77,6 +77,23 @@ test('a passphrase envelope, no outline, and the structure copy', async () => {
   assert.ok(opened.capabilities.includes('structured'));
 });
 
+test('the cover copy and a catalogue outline open, and the copy is checked against the inner cover', async () => {
+  const catalogue = join(spec, 'conformance/fixtures/catalogue-valid');
+  const env = join(tmp(), 'c.moca.enc');
+  const out = await encryptPackage({ pkg: catalogue, out: env, recipients: [recipient], outline: ['id', 'version', 'title', 'translations', 'tags'], cover: true });
+  assert.ok(out.warnings.some((w) => /outline\/cover\.webp is readable/.test(w)));
+  const zip = new AdmZip(env);
+  assert.ok(zip.getEntry('outline/cover.webp').getData().equals(readFileSync(join(catalogue, 'media/cover.webp'))));
+  assert.deepEqual(out.outline.tags, ['customer support', 'refunds', 'returns']);
+  const opened = await readPackage(env, opener({ identities }));
+  assert.equal(opened.envelope.opened, true);
+  assert.equal(opened.valid, true);
+});
+
+test('--cover refuses a package with no cover', async () => {
+  await assert.rejects(encryptPackage({ pkg: supportKb, out: join(tmp(), 'n.moca.enc'), recipients: [recipient], cover: true }), /no images entry with role cover/);
+});
+
 test('encrypt refuses an invalid package, an envelope, an unknown outline field and an existing output', async () => {
   const dir = tmp();
   await assert.rejects(encryptPackage({ pkg: join(spec, 'conformance/fixtures/type-missing'), out: join(dir, 'a'), recipients: [recipient] }), /not valid/);

@@ -38,13 +38,29 @@ function render(items, format, extra) {
 common(program.command('lint')
   .argument('<target>', 'package directory or .moca archive')
   .option('--sidecar <path>', 'also check a sidecar index against the package')
+  .option('--vocabulary <file>', 'report how tags and structure concepts match a SKOS vocabulary (Turtle, or a .moca with a structure.ttl)')
   .option('--format <fmt>', 'text | json | sarif', 'text')
   .option('--output <file>', 'write the report to a file'))
   .action((target, opts) => run(async () => {
-    const { result, diagnostics, ok } = await lintPackage({
+    const linted = await lintPackage({
       target, trustRoot: opts.trustRoot, memberDirs: opts.members, sidecar: opts.sidecar, strict: opts.strict,
       envelope: await envelopeOptions(opts),
     });
+    const { result, diagnostics } = linted;
+    let { ok } = linted;
+    if (opts.vocabulary) {
+      // Loaded only when asked, so the Workers build never parses Turtle for this.
+      const { loadVocabulary, vocabularyDiagnostics } = await import('../lib/vocabulary.js');
+      let vocabulary;
+      try {
+        vocabulary = await loadVocabulary(opts.vocabulary);
+      } catch (err) {
+        throw new UsageError(`--vocabulary: ${err.message}`);
+      }
+      const found = vocabularyDiagnostics(result, vocabulary, opts.strict);
+      diagnostics.push(...found);
+      if (found.some((d) => d.severity === 'error')) ok = false;
+    }
     const extra = { package: result.manifest ? { id: result.manifest.id, version: result.manifest.version } : null, digest: result.digest, capabilities: result.capabilities };
     const report = render(diagnostics, opts.format, extra);
     if (opts.output) writeFileSync(opts.output, report);

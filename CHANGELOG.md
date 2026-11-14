@@ -4,7 +4,26 @@ All notable changes to `@openmoca/moca-lint`, `@openmoca/moca-index`, `@openmoca
 
 ## [Unreleased]
 
-For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/5)).
+For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/5) and
+[moca-spec#7](https://github.com/openmoca/moca-spec/issues/7)).
+
+### Added (moca-lint, moca-sign: images, translations and tags)
+
+- `moca-lint lint` reads each image's pixel size from its header only (PNG
+  `IHDR`, the JPEG start-of-frame marker, WebP `VP8`, `VP8L` or `VP8X`) and
+  warns `LINT_IMAGE_SIZES_MISMATCH`, `LINT_ICON_NOT_SQUARE`,
+  `LINT_COVER_SHAPE` (not 16:9 within 1%), `LINT_IMAGE_TOO_SMALL` (a cover
+  under 960×540, an icon under 256×256) and `LINT_IMAGE_ALT_MISSING`, and
+  reports `LINT_TRANSLATION_MISSING` (info) for a declared locale with no
+  translation. Warnings are errors with `--strict`.
+- `moca-lint lint --vocabulary <file>`: a SKOS concept scheme in Turtle, or a
+  `.moca` whose `structure.ttl` holds one. Each package tag, page tag and
+  structure concept is reported as `LINT_VOCABULARY_MATCH` (info) or
+  `LINT_VOCABULARY_UNMATCHED` (info for a tag, warning for a concept) with
+  the nearest label. No vocabulary ships with the tool. moca-lint now
+  depends on `n3`, loaded only for this option.
+- `moca-sign encrypt`: `translations` and `tags` may be outline fields;
+  `--cover` leaves a copy of the first cover image readable, with a warning.
 
 ### Added (moca-lint, package spec §4.1)
 

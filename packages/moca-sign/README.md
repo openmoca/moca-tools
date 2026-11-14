@@ -12,7 +12,7 @@ moca-sign trust add <trust-root> --keyid <id> --public-key <pem> [--identity tex
 moca-sign trust add <trust-root> --issuer <url> --subject <identity> [--roles package,review]
 moca-sign trust list <trust-root>
 moca-sign trust remove <trust-root> (--keyid <id> | --issuer <url> --subject <identity>)
-moca-sign encrypt <package> -o <file.moca.enc> (-r <age1...>... | -R <file>... | --passphrase-env <name> [--work-factor n]) [--outline id,version,title | --no-outline] [--structure] [--force]
+moca-sign encrypt <package> -o <file.moca.enc> (-r <age1...>... | -R <file>... | --passphrase-env <name> [--work-factor n]) [--outline id,version,title | --no-outline] [--structure] [--cover] [--force]
 moca-sign decrypt <file.moca.enc> -o <file.moca> (-i <identity-file>... | --passphrase-env <name>) [--force]
 ```
 
@@ -36,8 +36,11 @@ moca-sign decrypt <file.moca.enc> -o <file.moca> (-i <identity-file>... | --pass
   (`age1…`, from `age-keygen` or any age tool) or to one passphrase. Sign
   first, then encrypt: attestations travel inside. The outline leaves `id`,
   `version` and `title` readable unless you choose other fields or
-  `--no-outline`; `--structure` also leaves `structure.ttl` readable, and warns
-  that it reveals the concept graph. A passphrase is read only from an
+  `--no-outline`. The outline may also carry `translations` and `tags`, so a
+  catalogue can show translated titles without the key. `--structure` also
+  leaves `structure.ttl` readable, and warns that it reveals the concept
+  graph; `--cover` leaves a copy of the first cover image readable
+  (`outline/cover.png`, `.jpg` or `.webp`), and warns that anyone can see it. A passphrase is read only from an
   environment variable. It refuses an invalid package. Encryption gives
   confidentiality only: anyone who can decrypt a copy can share its content.
 - `decrypt` opens an envelope as a Reader does, with every check including

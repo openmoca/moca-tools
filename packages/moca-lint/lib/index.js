@@ -21,7 +21,7 @@ export class UsageError extends Error {}
 export async function lintPackage({ target, trustRoot, memberDirs, sidecar, strict = false, envelope = {} }) {
   const resolveMember = memberDirs?.length ? directoryResolver(memberDirs) : undefined;
   const result = await readPackage(target, { trustRoot, resolveMember, strict, ...envelope });
-  const diagnostics = [...result.diagnostics, ...retiredConceptWarnings(result, strict)];
+  const diagnostics = [...result.diagnostics, ...retiredConceptWarnings(result, strict), ...catalogueWarnings(result, strict)];
   if (sidecar && result.valid) {
     const bound = bindSidecar(sidecar, result, { strict });
     diagnostics.push(...bound.diagnostics);
@@ -59,6 +59,78 @@ export function retiredConceptWarnings(result, strict = false) {
         message: `primary concept ${binding.iri} is ${how}, but this page is neither status: deprecated nor bounded by valid_until, so it is still retrieved${instead.length > 0 ? `; use instead: ${instead.join('; ')}` : ''}`,
         file: rep.file,
       });
+    }
+  }
+  return out;
+}
+
+/**
+ * The pixel size from an image's header only (PNG IHDR, the JPEG start-of-frame marker, the WebP VP8, VP8L or VP8X
+ * header). Nothing is decoded. Null when the header cannot be read.
+ * @param {Uint8Array} b
+ * @param {string} type
+ * @returns {{ width: number, height: number } | null}
+ */
+export function imageSize(b, type) {
+  const u16 = (i) => (b[i] << 8) | b[i + 1];
+  const u32 = (i) => ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
+  const le24 = (i) => b[i] | (b[i + 1] << 8) | (b[i + 2] << 16);
+  const ok = (width, height) => (width > 0 && height > 0 ? { width, height } : null);
+  if (type === 'image/png') return b.length >= 24 && String.fromCharCode(...b.subarray(12, 16)) === 'IHDR' ? ok(u32(16), u32(20)) : null;
+  if (type === 'image/jpeg') {
+    for (let i = 2; i + 9 < b.length;) {
+      if (b[i] !== 0xff) return null;
+      const marker = b[i + 1];
+      if (marker === 0xff) { i += 1; continue; }
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { i += 2; continue; }
+      // SOF0–SOF15, except DHT (C4), JPG (C8) and DAC (CC).
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) return ok(u16(i + 7), u16(i + 5));
+      i += 2 + u16(i + 2);
+    }
+    return null;
+  }
+  if (type === 'image/webp' && b.length >= 30) {
+    const chunk = String.fromCharCode(...b.subarray(12, 16));
+    if (chunk === 'VP8 ' && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) return ok(((b[27] << 8) | b[26]) & 0x3fff, ((b[29] << 8) | b[28]) & 0x3fff);
+    if (chunk === 'VP8L' && b[20] === 0x2f) {
+      const bits = b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24);
+      return ok((bits & 0x3fff) + 1, ((bits >>> 14) & 0x3fff) + 1);
+    }
+    if (chunk === 'VP8X') return ok(le24(24) + 1, le24(27) + 1);
+  }
+  return null;
+}
+
+/**
+ * moca-spec package spec §4.6–4.7 and #7: authoring checks for images and translations. A Reader never decodes an
+ * image; this tool reads pixel sizes from the file header only. Lint checks, not Reader diagnostics.
+ */
+export function catalogueWarnings(result, strict = false) {
+  if (!result.valid || !result.manifest) return [];
+  const warning = strict ? 'error' : 'warning';
+  const file = 'moca.json';
+  const out = [];
+  for (const image of result.images ?? []) {
+    if (image.alt === undefined) out.push({ code: 'LINT_IMAGE_ALT_MISSING', severity: warning, message: `${image.src} has no alt text for people who cannot see it`, file });
+    const size = imageSize(result.source.read(image.src), image.type);
+    if (!size) continue;
+    const { width, height } = size;
+    const actual = `${width}x${height}`;
+    if (image.sizes !== undefined && !image.sizes.split(' ').includes(actual)) {
+      out.push({ code: 'LINT_IMAGE_SIZES_MISMATCH', severity: warning, message: `${image.src} is ${actual}, and sizes says "${image.sizes}"`, file });
+    }
+    if (image.role === 'icon') {
+      if (width !== height) out.push({ code: 'LINT_ICON_NOT_SQUARE', severity: warning, message: `the icon ${image.src} is ${actual}, not square`, file });
+      if (width < 256 || height < 256) out.push({ code: 'LINT_IMAGE_TOO_SMALL', severity: warning, message: `the icon ${image.src} is ${actual}, under 256x256`, file });
+    } else if (image.role === 'cover') {
+      if (Math.abs(width / height - 16 / 9) > 0.01 * (16 / 9)) out.push({ code: 'LINT_COVER_SHAPE', severity: warning, message: `the cover ${image.src} is ${actual}, not 16:9`, file });
+      if (width < 960 || height < 540) out.push({ code: 'LINT_IMAGE_TOO_SMALL', severity: warning, message: `the cover ${image.src} is ${actual}, under 960x540`, file });
+    }
+  }
+  const translated = new Set(Object.keys(result.translations ?? {}).map((t) => t.toLowerCase()));
+  for (const locale of Array.isArray(result.manifest.locales) ? result.manifest.locales : []) {
+    if (!translated.has(locale.toLowerCase())) {
+      out.push({ code: 'LINT_TRANSLATION_MISSING', severity: 'info', message: `locale ${locale} has no translation of the manifest's title and description`, file });
     }
   }
   return out;

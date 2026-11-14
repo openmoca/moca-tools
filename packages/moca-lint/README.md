@@ -34,6 +34,34 @@ page is neither `status: deprecated` nor bounded by its own `moca.valid_until`.
 Structure never hides content, so that page is still retrieved. The warning
 names the replacing concept and the pages bound to it.
 
+**Images and translations** (moca-spec package spec §4.6–4.7). `lint` reads
+each image's pixel size from its header only, never decoding it, and warns:
+
+| Code | When |
+| --- | --- |
+| `LINT_IMAGE_SIZES_MISMATCH` | `sizes` does not include the image's pixel size. |
+| `LINT_ICON_NOT_SQUARE` | An `icon` is not square. |
+| `LINT_COVER_SHAPE` | A `cover` is not 16:9, within 1%. |
+| `LINT_IMAGE_TOO_SMALL` | A cover under 960×540, or an icon under 256×256. |
+| `LINT_IMAGE_ALT_MISSING` | An image has no `alt` text. |
+| `LINT_TRANSLATION_MISSING` (info) | A declared locale has no translation of the manifest's text. |
+
+**Vocabulary check.** `lint --vocabulary <file>` reports how the package's
+tags (package and page tags) and its `structure.ttl` concepts line up with a
+SKOS vocabulary: a Turtle file, or a `.moca` whose `structure.ttl` holds one.
+No vocabulary ships with moca-lint.
+
+- A tag matches a concept when it equals its `skos:prefLabel` or
+  `skos:altLabel` in the tag's language (case-insensitive, A–Z only), or is
+  the concept's IRI. A label in `en` serves a tag in `en-GB`, and the other
+  way round; a label or tag with no language matches any.
+- A structure concept matches when its IRI is in the vocabulary, or it has
+  `skos:exactMatch` or `skos:closeMatch` to one that is. Readers ignore these
+  two terms; only this tool reads them.
+- A match is `LINT_VOCABULARY_MATCH` (info). A miss is
+  `LINT_VOCABULARY_UNMATCHED`, info for a tag and a warning for a concept,
+  with the nearest label.
+
 **Envelopes** (moca-spec encrypted packages). `lint` and `info` read a
 `.moca.enc` like a Reader: without a key they check the entries and
 `moca-enc.json` and report `E001`; with `--identity <file>` or

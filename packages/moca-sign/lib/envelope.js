@@ -8,7 +8,9 @@ import { ageDecryptor } from '@openmoca/moca-core/age';
 import { ageEncrypt, EncryptError } from './age-encrypt.js';
 
 /** Manifest properties an outline may carry (encrypted packages §3). */
-export const OUTLINE_FIELDS = Object.freeze(['id', 'version', 'title', 'description', 'language', 'license', 'publisher', 'mocaVersion', 'distribution']);
+export const OUTLINE_FIELDS = Object.freeze(['id', 'version', 'title', 'description', 'language', 'license', 'publisher', 'mocaVersion', 'distribution', 'translations', 'tags']);
+/** The cover copy's entry name for each image type (encrypted packages §3). */
+const COVER_NAMES = Object.freeze({ 'image/png': 'outline/cover.png', 'image/jpeg': 'outline/cover.jpg', 'image/webp': 'outline/cover.webp' });
 /** What tools write when the publisher does not choose (encrypted packages §3). */
 export const DEFAULT_OUTLINE = Object.freeze(['id', 'version', 'title']);
 const FIXED_TIME = new Date(Date.UTC(1980, 0, 1));
@@ -35,11 +37,12 @@ export function parseOutlineFields(list) {
 /**
  * Writes an envelope for a valid package.
  * @param {{ pkg: string, out: string, recipients?: string[], passphrase?: string, workFactor?: number,
- *   outline?: string[], structure?: boolean, force?: boolean }} p  `outline` lists manifest fields to leave readable
- *   (default id, version, title; `[]` for none); `structure` adds the opt-in plain copy of structure.ttl.
+ *   outline?: string[], structure?: boolean, cover?: boolean, force?: boolean }} p  `outline` lists manifest fields to
+ *   leave readable (default id, version, title; `[]` for none); `structure` adds the opt-in plain copy of structure.ttl;
+ *   `cover` the opt-in plain copy of the first cover image.
  * @returns {Promise<{ out: string, digest: string, outline: object|undefined, warnings: string[] }>}
  */
-export async function encryptPackage({ pkg, out, recipients = [], passphrase, workFactor, outline = DEFAULT_OUTLINE, structure = false, force = false }) {
+export async function encryptPackage({ pkg, out, recipients = [], passphrase, workFactor, outline = DEFAULT_OUTLINE, structure = false, cover = false, force = false }) {
   if (!existsSync(pkg)) throw new EncryptError(`${pkg} does not exist`);
   if (existsSync(out) && !force) throw new EncryptError(`${out} already exists; pass --force to replace it`);
   const result = await readPackage(pkg);
@@ -66,6 +69,14 @@ export async function encryptPackage({ pkg, out, recipients = [], passphrase, wo
     if (!ttl) throw new EncryptError('--structure: the package has no structure.ttl');
     add('outline/structure.ttl', result.source.read(ttl.path), false);
     warnings.push('outline/structure.ttl is readable without a key: it reveals the package\'s concept graph');
+  }
+  if (cover) {
+    // The first images entry with role cover, as the Reader's outline check takes it; it must have passed its checks.
+    const first = (result.manifest.images ?? []).find((i) => i.role === 'cover');
+    if (!first) throw new EncryptError('--cover: the manifest has no images entry with role cover');
+    if (!(result.images ?? []).some((i) => i.src === first.src)) throw new EncryptError(`--cover: the first cover, ${first.src}, fails its checks (M010)`);
+    add(COVER_NAMES[first.type], result.source.read(first.src), false);
+    warnings.push(`${COVER_NAMES[first.type]} is readable without a key: anyone can see the cover`);
   }
   writeFileSync(out, envelope.toBuffer());
 

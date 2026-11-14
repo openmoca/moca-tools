@@ -17,7 +17,8 @@
   "dependencies": {
     "@openmoca/moca-core": "file:../../../moca-reader-typescript",
     "adm-zip": "^0.6.0",
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "n3": "^2.7.12"
   },
   "publishConfig": {
     "access": "public"

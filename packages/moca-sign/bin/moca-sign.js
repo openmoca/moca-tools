@@ -166,12 +166,13 @@ program.command('encrypt')
   .option('--outline <fields>', `manifest fields left readable, comma-separated (default ${DEFAULT_OUTLINE.join(',')})`)
   .option('--no-outline', 'leave no manifest field readable')
   .option('--structure', 'also leave structure.ttl readable (reveals the concept graph)', false)
+  .option('--cover', 'also leave the first cover image readable', false)
   .option('--force', 'replace an existing output', false)
   .action((pkg, opts) => run(async () => {
     const recipients = [...opts.recipient, ...readRecipients(opts.recipientsFile)];
     const passphrase = opts.passphraseEnv ? passphraseFromEnv(opts.passphraseEnv) : undefined;
     const outline = opts.outline === false ? [] : typeof opts.outline === 'string' ? parseOutlineFields(opts.outline.split(',').map((s) => s.trim()).filter(Boolean)) : DEFAULT_OUTLINE;
-    const r = await encryptPackage({ pkg, out: opts.out, recipients, passphrase, workFactor: opts.workFactor, outline, structure: opts.structure, force: opts.force });
+    const r = await encryptPackage({ pkg, out: opts.out, recipients, passphrase, workFactor: opts.workFactor, outline, structure: opts.structure, cover: opts.cover, force: opts.force });
     for (const w of r.warnings) console.error(`moca-sign: warning: ${w}`);
     console.log(`Wrote ${r.out}\n${r.digest}\noutline: ${r.outline ? JSON.stringify(r.outline) : 'none'}`);
   }));
