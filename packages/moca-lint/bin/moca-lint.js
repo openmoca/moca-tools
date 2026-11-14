@@ -90,6 +90,7 @@ program.command('info')
       digest: r.digest,
       valid: r.valid,
       capabilities: r.capabilities,
+      distribution: r.distribution,
       nodes: r.nodes.map((n) => ({ path: n.path, type: n.representations[0].frontmatter.type, locales: n.representations.map((x) => x.locale ?? 'default') })),
       members: r.members.map(({ id, version: v, digest, status }) => ({ id, version: v, digest, status })),
       attestations: r.attestations.map(({ file, role, outcome, signer }) => ({ file, role, outcome, signer })),
@@ -109,6 +110,8 @@ common(program.command('pack')
       process.exitCode = 1;
       return;
     }
+    const warnings = out.diagnostics.filter((d) => d.severity === 'warning');
+    if (warnings.length > 0) console.error(formatText(warnings));
     console.log(`Wrote ${opts.out}\n${out.result.digest}`);
   }));
 

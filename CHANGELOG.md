@@ -2,6 +2,21 @@
 
 All notable changes to `@openmoca/moca-lint`, `@openmoca/moca-index`, `@openmoca/moca-sign`. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/5)).
+
+### Added (moca-lint, package spec §4.1)
+
+- `pack` warns `LINT_DISTRIBUTION_PACKED_PLAIN` (an error with `--strict`)
+  when the manifest's `distribution` is `encrypted-only`. `info` shows
+  `distribution`.
+
+### Changed
+
+- While the proposal is open, the packages depend on the sibling
+  moca-reader-typescript (`file:`), and CI checks it out at a pinned ref.
+
 ## [0.6.0] - 2026-11-11
 
 ### Changed (moca-sign trust add)

@@ -69,6 +69,9 @@ export function retiredConceptWarnings(result, strict = false) {
 export async function packPackage({ dir, out, trustRoot, memberDirs, strict = false }) {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) throw new UsageError(`not a package directory: ${dir}`);
   const lint = await lintPackage({ target: dir, trustRoot, memberDirs, strict });
+  const plain = plainPackWarnings(lint.result, strict);
+  lint.diagnostics.push(...plain);
+  if (plain.some((d) => d.severity === 'error')) lint.ok = false;
   if (!lint.ok) return { written: false, ...lint };
   const source = lint.result.source;
   const zip = new AdmZip();
@@ -79,6 +82,22 @@ export async function packPackage({ dir, out, trustRoot, memberDirs, strict = fa
   mkdirSync(dirname(out) || '.', { recursive: true });
   zip.writeZip(out);
   return { written: true, ...lint };
+}
+
+/**
+ * moca-spec package spec §4.1: an `encrypted-only` package is meant to be handed
+ * out only inside an envelope. Packing it as a plain .moca is allowed (the
+ * envelope wraps a .moca), but the author is warned. A lint check, not a Reader
+ * diagnostic.
+ */
+export function plainPackWarnings(result, strict = false) {
+  if (result.distribution !== 'encrypted-only') return [];
+  return [{
+    code: 'LINT_DISTRIBUTION_PACKED_PLAIN',
+    severity: strict ? 'error' : 'warning',
+    message: 'distribution is encrypted-only, but this writes a plain .moca; encrypt it before handing it out',
+    file: 'moca.json',
+  }];
 }
 
 /** Safely extracts a .moca archive: the same checks a Reader applies. */
