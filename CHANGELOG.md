@@ -9,6 +9,13 @@ For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/
 [moca-spec#8](https://github.com/openmoca/moca-spec/issues/8) and
 [moca-spec#9](https://github.com/openmoca/moca-spec/issues/9)).
 
+### Changed (age hardening in the Reader)
+
+- `moca-sign decrypt` awaits the Reader's age decryptor, whose `decrypt` is
+  now asynchronous.
+- CI installs the Go age CLI (pinned, checksum-checked) and requires it on
+  Linux, so the age cross-check never skips there.
+
 ### Added (moca-sign, moca-lint: issued copies)
 
 - `moca-sign issue <copy> --original <dir>`: compares a marked copy with the

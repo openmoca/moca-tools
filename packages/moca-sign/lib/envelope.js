@@ -105,7 +105,7 @@ export async function decryptEnvelope({ envelope, out, identities, passphrase, f
   if (!result.envelope.opened) throw new EncryptError(`the envelope did not open:\n${formatText(result.diagnostics)}`);
   const bytes = new Uint8Array(new AdmZip(envelope).getEntry('package.age').getData());
   const header = ageDecryptor.parseHeader(bytes, { maxScryptWorkFactor });
-  writeFileSync(out, ageDecryptor.decrypt(bytes, header, key));
+  writeFileSync(out, await ageDecryptor.decrypt(bytes, header, key));
   return { out, digest: result.digest, valid: result.valid };
 }
 

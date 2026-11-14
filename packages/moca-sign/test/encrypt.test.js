@@ -21,7 +21,12 @@ const goAge = spawnSync('age', ['--version']).status === 0;
 const tmp = () => mkdtempSync(join(tmpdir(), 'moca-sign-enc-'));
 const opener = (key) => ({ decryptor: ageDecryptor, keyProvider: () => key });
 
-test('the Go age CLI decrypts what ageEncrypt writes, for every chunk boundary', { skip: goAge ? false : 'the Go age CLI is not installed' }, () => {
+// CI installs the Go age CLI and sets MOCA_REQUIRE_GO_AGE, so the cross-check never skips there.
+test('the Go age CLI is installed where it is required', { skip: !process.env.MOCA_REQUIRE_GO_AGE }, () => {
+  assert.ok(goAge, 'MOCA_REQUIRE_GO_AGE is set, and `age` is not on the PATH');
+});
+
+test('the Go age CLI decrypts what ageEncrypt writes, for every chunk boundary', { skip: goAge ? false : 'the Go age CLI is not installed' }, async () => {
   for (const size of [0, 1, 65535, 65536, 65537, 131072, 200000]) {
     const plain = Buffer.alloc(size, size % 251);
     const sealed = ageEncrypt(plain, { recipients: [recipient] });
@@ -29,7 +34,7 @@ test('the Go age CLI decrypts what ageEncrypt writes, for every chunk boundary',
     assert.equal(go.status, 0, `size ${size}: ${go.stderr}`);
     assert.ok(go.stdout.equals(plain), `size ${size}: the plaintexts differ`);
     // And the Reader's own decryptor agrees.
-    assert.ok(Buffer.from(ageDecryptor.decrypt(sealed, ageDecryptor.parseHeader(sealed), { identities })).equals(plain));
+    assert.ok(Buffer.from(await ageDecryptor.decrypt(sealed, ageDecryptor.parseHeader(sealed), { identities })).equals(plain));
   }
   const pw = ageEncrypt(Buffer.from('hello'), { passphrase: 'pw', workFactor: 10 });
   const go = spawnSync('age', ['--decrypt', '-j', 'batchpass'], { input: pw, env: { ...process.env, AGE_PASSPHRASE: 'pw' } });
