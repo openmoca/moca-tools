@@ -19,6 +19,7 @@ permissions:
 # Proposal is in flight; never a branch (moca-spec CONTRIBUTING.md).
 env:
   MOCA_SPEC_REF: v0.6.0
+  MOCA_READER_TYPESCRIPT_REF: v0.6.0
 
 jobs:
   deps:
@@ -59,11 +60,20 @@ jobs:
           path: moca-spec
           # Read access to the other MOCA repos while they are private.
           token: ${{ secrets.MOCA_REPOS_TOKEN || github.token }}
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/moca-reader-typescript
+          ref: ${{ env.MOCA_READER_TYPESCRIPT_REF }}
+          path: moca-reader-typescript
+          # Read access to the other MOCA repos while they are private.
+          token: ${{ secrets.MOCA_REPOS_TOKEN || github.token }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: '*/package-lock.json'
+      - run: npm ci
+        working-directory: moca-reader-typescript
       - run: npm ci
         working-directory: moca-tools
       - run: npm test

@@ -15,7 +15,7 @@
     "test:workers": "node --test workers/workers.test.mjs"
   },
   "dependencies": {
-    "@openmoca/moca-core": "^0.6.0",
+    "@openmoca/moca-core": "file:../../../moca-reader-typescript",
     "adm-zip": "^0.6.0",
     "commander": "^12.1.0"
   },

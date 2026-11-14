@@ -16,7 +16,10 @@ The specification is in [moca-spec](https://github.com/openmoca/moca-spec).
 ## Develop
 
 The tests read moca-spec's examples and fixtures. Check out moca-spec beside
-this repository, or set `MOCA_SPEC_DIR`.
+this repository, or set `MOCA_SPEC_DIR`. While a Spec Change Proposal is in
+flight, the packages depend on `@openmoca/moca-core` as
+`file:../../../moca-reader-typescript`, so check that out beside this
+repository too and run `npm install` in it first.
 CI uses the tags pinned at the top of `.github/workflows/test.yml`
 (`MOCA_SPEC_REF` and the like); check out the same tags to match it.
 

@@ -85,3 +85,16 @@ test('acme-support marks its retired pages, so it has no retired-concept warning
   const r = await lintPackage({ target: join(repo, 'examples/acme-support') });
   assert.deepEqual(r.diagnostics.filter((d) => d.code === 'LINT_RETIRED_CONCEPT'), []);
 });
+
+test('pack warns when an encrypted-only package is packed plain, and refuses under --strict', async () => {
+  const fixture = join(repo, 'conformance/fixtures/distribution-encrypted-only');
+  const dir = mkdtempSync(join(tmpdir(), 'moca-lint-plain-'));
+  const packed = await packPackage({ dir: fixture, out: join(dir, 'a.moca') });
+  assert.equal(packed.written, true);
+  assert.deepEqual(packed.diagnostics.map((d) => [d.code, d.severity]), [['LINT_DISTRIBUTION_PACKED_PLAIN', 'warning']]);
+  const strict = await packPackage({ dir: fixture, out: join(dir, 'b.moca'), strict: true });
+  assert.equal(strict.written, false);
+  assert.equal(existsSync(join(dir, 'b.moca')), false);
+  const open = await packPackage({ dir: join(repo, 'conformance/fixtures/valid-minimal'), out: join(dir, 'c.moca') });
+  assert.deepEqual(open.diagnostics, []);
+});

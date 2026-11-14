@@ -34,6 +34,10 @@ page is neither `status: deprecated` nor bounded by its own `moca.valid_until`.
 Structure never hides content, so that page is still retrieved. The warning
 names the replacing concept and the pages bound to it.
 
+`pack` adds `LINT_DISTRIBUTION_PACKED_PLAIN` (warning; an error with
+`--strict`) when the manifest's `distribution` is `encrypted-only`: such a
+package is meant to be handed out only encrypted. Pack it, then encrypt it.
+
 From a checkout of moca-tools: `node packages/moca-lint/bin/moca-lint.js ...`.
 
 ## Over HTTP, and on Cloudflare Workers
