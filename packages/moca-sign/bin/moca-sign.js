@@ -5,7 +5,7 @@ import { Command } from 'commander';
 import {
   generateKeyPair, signPackage, reviewNodes, verifyPackage, SignError,
   readTrustRoot, writeTrustRoot, addKey, addSigstoreIdentity, removeEntry, describeTrustRoot, checkPublicKey,
-  parseRoles, parseExpires, TrustRootError,
+  parseRoles, parseIds, parseExpires, TrustRootError, issueCopy, IssueError,
   encryptPackage, decryptEnvelope, readIdentities, readRecipients, passphraseFromEnv, parseOutlineFields, EncryptError, DEFAULT_OUTLINE,
 } from '../lib/index.js';
 import { formatText } from '../lib/deps.js';
@@ -61,9 +61,11 @@ trust.command('add')
   .option('--expires <date>', 'stop trusting the key after this date, e.g. 2027-01-01')
   .option('--issuer <url>', 'Sigstore: the OIDC issuer, e.g. https://token.actions.githubusercontent.com')
   .option('--subject <identity>', 'Sigstore: the identity it signs as, e.g. a workflow address or an email')
-  .option('--roles <roles>', 'what it may sign: package, review, or package,review (default: both)')
+  .option('--roles <roles>', 'what it may sign: package, review, issued-copy, comma-separated (default: package,review)')
+  .option('--ids <ids>', 'package ids, or prefixes ending in /, : or #, it may speak for; required with issued-copy')
   .action((path, opts) => run(() => {
     const roles = parseRoles(opts.roles);
+    const ids = parseIds(opts.ids, roles);
     const isKey = opts.keyid !== undefined || opts.publicKey !== undefined;
     const isSigstore = opts.issuer !== undefined || opts.subject !== undefined;
     if (isKey === isSigstore) throw new TrustRootError('add either a key (--keyid and --public-key) or a Sigstore identity (--issuer and --subject)');
@@ -72,13 +74,13 @@ trust.command('add')
       if (!opts.keyid || !opts.publicKey) throw new TrustRootError('a key needs both --keyid and --public-key');
       const { pem } = checkPublicKey(readFileSync(opts.publicKey, 'utf8'));
       const expires = parseExpires(opts.expires);
-      const { doc, replaced } = addKey(before, { keyid: opts.keyid, publicKey: pem, identity: opts.identity, roles, expires });
+      const { doc, replaced } = addKey(before, { keyid: opts.keyid, publicKey: pem, identity: opts.identity, roles, expires, ids });
       writeTrustRoot(path, doc);
       console.log(`${replaced ? 'Replaced' : 'Added'} key ${opts.keyid} in ${path}, trusted for ${(roles ?? ['package', 'review']).join(' and ')}.`);
       if (expires && Date.parse(expires) < Date.now()) console.warn(`moca-sign: warning: the key expired on ${expires}, so nothing it signed will verify.`);
     } else {
       if (opts.expires !== undefined || opts.identity !== undefined) throw new TrustRootError('--expires and --identity are for keys; a Sigstore identity is named by --subject');
-      const { doc, replaced } = addSigstoreIdentity(before, { issuer: opts.issuer, subject: opts.subject, roles });
+      const { doc, replaced } = addSigstoreIdentity(before, { issuer: opts.issuer, subject: opts.subject, roles, ids });
       writeTrustRoot(path, doc);
       console.log(`${replaced ? 'Replaced' : 'Added'} Sigstore identity ${opts.subject} in ${path}, trusted for ${(roles ?? ['package', 'review']).join(' and ')}.`);
     }
@@ -132,6 +134,18 @@ keyOptions(program.command('review')
       scope: opts.scope, note: opts.note, name: opts.name, ...keyArgs(opts),
     });
     console.log(`Reviewed ${out.files.map((f) => f.path).join(', ')}\nWrote ${out.file}`);
+  }));
+
+program.command('issue')
+  .description('bind a marked copy to its publisher\'s package (writes attestations/issued.<keyid>.dsse.json); it never marks anything')
+  .argument('<copy>', 'the marked copy: a directory made from the original, with some files under content/ or media/ changed')
+  .requiredOption('--original <dir>', 'the publisher\'s package, as published and signed')
+  .requiredOption('--key <pem>', 'the issuer\'s Ed25519 private key (PKCS#8 PEM)')
+  .requiredOption('--keyid <id>', 'key id recorded in the DSSE envelope; must match the reader\'s trust root')
+  .action((copy, opts) => run(async () => {
+    const out = await issueCopy({ original: opts.original, copy, privateKeyPem: readFileSync(opts.key, 'utf8'), keyid: opts.keyid });
+    if (out.copied.length > 0) console.log(`Copied the publisher's attestations: ${out.copied.join(', ')}`);
+    console.log(`Issued ${out.digest}\nOriginal ${out.originalDigest}\nChanged ${out.changedFiles.join(', ')}\nWrote ${out.file}`);
   }));
 
 program.command('verify')
@@ -195,7 +209,7 @@ async function run(fn) {
   try {
     await fn();
   } catch (err) {
-    if (err instanceof SignError || err instanceof TrustRootError || err instanceof EncryptError) {
+    if (err instanceof SignError || err instanceof TrustRootError || err instanceof EncryptError || err instanceof IssueError) {
       console.error(`moca-sign: ${err.message}`);
       process.exit(2);
     }

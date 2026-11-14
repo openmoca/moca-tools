@@ -1,15 +1,17 @@
 # @openmoca/moca-sign
 
 Writes and verifies MOCA [attestations](https://github.com/openmoca/moca-spec/blob/main/spec/moca-attestations.md):
-package attestations for publishers and review attestations for reviewers.
+package attestations for publishers, review attestations for reviewers, and
+issued-copy attestations for issuers.
 
 ```sh
 moca-sign keygen --keyid <id> --out <dir> [--roles package,review] [--identity text] [--expires date]
 moca-sign sign <package> (--key <pem> --keyid <id> | --sigstore)
 moca-sign review <package> --nodes <paths...> --reviewer <actor> [--outcome accurate|needs-change|inaccurate] [--scope text] [--note text] [--at iso] (--key <pem> --keyid <id> | --sigstore)
+moca-sign issue <copy> --original <dir> --key <pem> --keyid <id>
 moca-sign verify <package> --trust-root <file> [--online] [--allow-offline-fallback] [--tuf-cache dir]
-moca-sign trust add <trust-root> --keyid <id> --public-key <pem> [--identity text] [--roles package,review] [--expires date]
-moca-sign trust add <trust-root> --issuer <url> --subject <identity> [--roles package,review]
+moca-sign trust add <trust-root> --keyid <id> --public-key <pem> [--identity text] [--roles package,review,issued-copy] [--ids ids] [--expires date]
+moca-sign trust add <trust-root> --issuer <url> --subject <identity> [--roles package,review,issued-copy] [--ids ids]
 moca-sign trust list <trust-root>
 moca-sign trust remove <trust-root> (--keyid <id> | --issuer <url> --subject <identity>)
 moca-sign encrypt <package> -o <file.moca.enc> (-r <age1...>... | -R <file>... | --passphrase-env <name> [--work-factor n]) [--outline id,version,title | --no-outline] [--structure] [--cover] [--force]
@@ -22,6 +24,17 @@ moca-sign decrypt <file.moca.enc> -o <file.moca> (-i <identity-file>... | --pass
   `package.sigstore.json`). It refuses to sign an invalid package.
 - `review` writes `attestations/reviews/<reviewer>-<date>.dsse.json`, binding
   the review to each node file's exact SHA-256.
+- `issue` binds a marked copy to its publisher's package
+  ([attestations §3a](https://github.com/openmoca/moca-spec/blob/main/spec/moca-attestations.md#3a-issued-copy-attestations)).
+  Make the copy from the publisher's package, change the files you mark, then
+  run `issue`. It compares the copy with the original, checks that only files
+  under `content/` or `media/` changed and that the publisher's
+  `issuedCopies` allows them, and writes
+  `attestations/issued.<keyid>.dsse.json` with the original hash of each
+  changed file. It copies the publisher's attestations into the copy if they
+  are missing. It never marks anything, and it signs with a DSSE key only:
+  keyless signing would put each issue in a public log. Keep your own record
+  of which copy, by digest, went to whom.
 - `verify` checks every attestation and exits 0 only if all verify and at least
   one package attestation is valid.
 - `trust` edits a reader's trust root: whose signatures it accepts, and for
@@ -30,6 +43,8 @@ moca-sign decrypt <file.moca.enc> -o <file.moca> (-i <identity-file>... | --pass
   needed, replaces an entry with the same key id or identity, and checks the
   result against the trust-root schema. It refuses a private key, and any key
   that is not Ed25519: MOCA DSSE keys are Ed25519 (attestations §5).
+  `--roles issued-copy` lets an issuer bind copies, and needs `--ids`: the
+  packages whose copies it may issue. It is never a default role.
 - `encrypt` writes an envelope
   ([encrypted packages](https://github.com/openmoca/moca-spec/blob/main/spec/moca-encrypted-package.md)):
   the package as a `.moca` archive, encrypted with age v1 to X25519 recipients

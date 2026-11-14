@@ -46,6 +46,11 @@ each image's pixel size from its header only, never decoding it, and warns:
 | `LINT_IMAGE_ALT_MISSING` | An image has no `alt` text. |
 | `LINT_TRANSLATION_MISSING` (info) | A declared locale has no translation of the manifest's text. |
 
+**Issued copies** (moca-spec package spec §4.11). `lint` adds
+`LINT_ISSUED_COPIES_OPEN` (info) when `issuedCopies` allows issued copies but
+`distribution` is `open`, so the package can also be passed on unmarked. The
+two are independent; the note only asks you to check.
+
 **Vocabulary check.** `lint --vocabulary <file>` reports how the package's
 tags (package and page tags) and its `structure.ttl` concepts line up with a
 SKOS vocabulary: a Turtle file, or a `.moca` whose `structure.ttl` holds one.

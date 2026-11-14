@@ -12,8 +12,9 @@ export class SignError extends Error {}
 
 export {
   readTrustRoot, writeTrustRoot, addKey, addSigstoreIdentity, removeEntry, describeTrustRoot, checkPublicKey,
-  parseRoles, parseExpires, TrustRootError, ROLES,
+  parseRoles, parseIds, parseExpires, TrustRootError, ROLES, ALL_ROLES,
 } from './trust.js';
+export { issueCopy, compareCopy, IssueError } from './issue.js';
 
 /** @returns {{ privateKeyPem: string, publicKeyPem: string }} */
 export function generateKeyPair() {

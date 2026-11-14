@@ -169,3 +169,22 @@ test('the CLI takes a .moca package as the vocabulary', async () => {
   assert.equal(out.status, 0, out.stderr);
   assert.match(out.stdout, /LINT_VOCABULARY_MATCH/);
 });
+
+test('an open package that allows issued copies gets an info note; an encrypted-only one does not', async () => {
+  const key = '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAV7oSvpgKWeRJP+wg5aoP04bxrq2ZzOiT+NPhHsW1W4g=\n-----END PUBLIC KEY-----\n';
+  const make = (distribution) => {
+    const dir = mkdtempSync(join(tmpdir(), 'moca-lint-issued-'));
+    writeFileSync(join(dir, 'moca.json'), JSON.stringify({
+      id: 'https://example.com/t', version: '1.0.0', title: 'T',
+      ...(distribution ? { distribution } : {}),
+      issuedCopies: { issuers: [{ publicKey: key }], paths: ['content/'] },
+    }));
+    mkdirSync(join(dir, 'content'));
+    writeFileSync(join(dir, 'content', 'a.md'), '---\ntype: Note\ntitle: A\n---\n\n# A\n\nText.\n');
+    return dir;
+  };
+  const codes = async (dir) => (await lintPackage({ target: dir })).diagnostics.map((d) => d.code);
+  assert.ok((await codes(make())).includes('LINT_ISSUED_COPIES_OPEN'));
+  assert.ok((await codes(make('open'))).includes('LINT_ISSUED_COPIES_OPEN'));
+  assert.ok(!(await codes(make('encrypted-only'))).includes('LINT_ISSUED_COPIES_OPEN'));
+});

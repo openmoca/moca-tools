@@ -9,6 +9,18 @@ For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/
 [moca-spec#8](https://github.com/openmoca/moca-spec/issues/8) and
 [moca-spec#9](https://github.com/openmoca/moca-spec/issues/9)).
 
+### Added (moca-sign, moca-lint: issued copies)
+
+- `moca-sign issue <copy> --original <dir>`: compares a marked copy with the
+  publisher's package, checks the rules for issued copies and the
+  publisher's `issuedCopies`, and writes an issued-copy attestation
+  (moca-spec attestations §3a). It copies the publisher's attestations into
+  the copy when they are missing. It never marks anything.
+- `moca-sign trust add --roles issued-copy --ids <ids>`: the new trust-root
+  role, never a default, with the `ids` it requires.
+- `moca-lint lint`: `LINT_ISSUED_COPIES_OPEN` (info) when `issuedCopies`
+  allows issued copies but `distribution` is `open`.
+
 ### Added (moca-lint: the reading order)
 
 - `moca-lint info` shows `readingOrder` when it resolves. `lint` reports

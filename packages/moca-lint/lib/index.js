@@ -21,7 +21,7 @@ export class UsageError extends Error {}
 export async function lintPackage({ target, trustRoot, memberDirs, sidecar, strict = false, envelope = {} }) {
   const resolveMember = memberDirs?.length ? directoryResolver(memberDirs) : undefined;
   const result = await readPackage(target, { trustRoot, resolveMember, strict, ...envelope });
-  const diagnostics = [...result.diagnostics, ...retiredConceptWarnings(result, strict), ...catalogueWarnings(result, strict)];
+  const diagnostics = [...result.diagnostics, ...retiredConceptWarnings(result, strict), ...catalogueWarnings(result, strict), ...issuedCopyNotes(result)];
   if (sidecar && result.valid) {
     const bound = bindSidecar(sidecar, result, { strict });
     diagnostics.push(...bound.diagnostics);
@@ -99,6 +99,21 @@ export function imageSize(b, type) {
     if (chunk === 'VP8X') return ok(le24(24) + 1, le24(27) + 1);
   }
   return null;
+}
+
+/**
+ * moca-spec package spec §4.11: a package that allows issued copies but is `open`. Issued copies usually go with
+ * paid or licensed use, and an open package can be passed on unmarked, so the publisher may have meant
+ * `encrypted-only`. A note only: the two are independent.
+ */
+export function issuedCopyNotes(result) {
+  if (!result.valid || !result.manifest?.issuedCopies || (result.distribution ?? 'open') !== 'open') return [];
+  return [{
+    code: 'LINT_ISSUED_COPIES_OPEN',
+    severity: 'info',
+    message: 'issuedCopies allows issued copies, but distribution is open, so the package can also be passed on unmarked; check that this is what you meant',
+    file: 'moca.json',
+  }];
 }
 
 /**
