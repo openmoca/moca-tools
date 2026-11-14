@@ -36,8 +36,9 @@ moca-sign decrypt <file.moca.enc> -o <file.moca> (-i <identity-file>... | --pass
   (`age1…`, from `age-keygen` or any age tool) or to one passphrase. Sign
   first, then encrypt: attestations travel inside. The outline leaves `id`,
   `version` and `title` readable unless you choose other fields or
-  `--no-outline`. The outline may also carry `translations` and `tags`, so a
-  catalogue can show translated titles without the key. `--structure` also
+  `--no-outline`. The outline may also carry `translations`, `tags` and `apps`, so
+  a catalogue can show translated titles and offer "Open with" without the
+  key. `--structure` also
   leaves `structure.ttl` readable, and warns that it reveals the concept
   graph; `--cover` leaves a copy of the first cover image readable
   (`outline/cover.png`, `.jpg` or `.webp`), and warns that anyone can see it. A passphrase is read only from an

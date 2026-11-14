@@ -5,7 +5,14 @@ All notable changes to `@openmoca/moca-lint`, `@openmoca/moca-index`, `@openmoca
 ## [Unreleased]
 
 For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/5) and
-[moca-spec#7](https://github.com/openmoca/moca-spec/issues/7)).
+[moca-spec#7](https://github.com/openmoca/moca-spec/issues/7) and
+[moca-spec#8](https://github.com/openmoca/moca-spec/issues/8)).
+
+### Added (moca-sign, moca-lint: the apps hint)
+
+- `moca-sign encrypt`: `apps` may be an outline field.
+- `moca-lint info` shows `tags`, `apps` and `images` when the package has
+  them.
 
 ### Added (moca-lint, moca-sign: images, translations and tags)
 

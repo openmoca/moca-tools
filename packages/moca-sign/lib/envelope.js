@@ -8,7 +8,7 @@ import { ageDecryptor } from '@openmoca/moca-core/age';
 import { ageEncrypt, EncryptError } from './age-encrypt.js';
 
 /** Manifest properties an outline may carry (encrypted packages §3). */
-export const OUTLINE_FIELDS = Object.freeze(['id', 'version', 'title', 'description', 'language', 'license', 'publisher', 'mocaVersion', 'distribution', 'translations', 'tags']);
+export const OUTLINE_FIELDS = Object.freeze(['id', 'version', 'title', 'description', 'language', 'license', 'publisher', 'mocaVersion', 'distribution', 'translations', 'tags', 'apps']);
 /** The cover copy's entry name for each image type (encrypted packages §3). */
 const COVER_NAMES = Object.freeze({ 'image/png': 'outline/cover.png', 'image/jpeg': 'outline/cover.jpg', 'image/webp': 'outline/cover.webp' });
 /** What tools write when the publisher does not choose (encrypted packages §3). */
