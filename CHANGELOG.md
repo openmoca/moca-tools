@@ -6,7 +6,13 @@ All notable changes to `@openmoca/moca-lint`, `@openmoca/moca-index`, `@openmoca
 
 For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/5) and
 [moca-spec#7](https://github.com/openmoca/moca-spec/issues/7) and
-[moca-spec#8](https://github.com/openmoca/moca-spec/issues/8)).
+[moca-spec#8](https://github.com/openmoca/moca-spec/issues/8) and
+[moca-spec#9](https://github.com/openmoca/moca-spec/issues/9)).
+
+### Added (moca-lint: the reading order)
+
+- `moca-lint info` shows `readingOrder` when it resolves. `lint` reports
+  `M014_READING_ORDER_UNRESOLVED` from the Reader like any other code.
 
 ### Added (moca-sign, moca-lint: the apps hint)
 

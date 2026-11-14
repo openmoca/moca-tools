@@ -131,6 +131,7 @@ program.command('info')
       distribution: r.distribution,
       ...(r.tags ? { tags: r.tags } : {}),
       ...(r.apps ? { apps: r.apps } : {}),
+      ...(r.readingOrder ? { readingOrder: r.readingOrder } : {}),
       ...(r.images ? { images: r.images } : {}),
       ...(r.envelope ? { envelope: r.envelope } : {}),
       nodes: r.nodes.map((n) => ({ path: n.path, type: n.representations[0].frontmatter.type, locales: n.representations.map((x) => x.locale ?? 'default') })),
