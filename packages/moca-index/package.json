@@ -1,6 +1,6 @@
 {
   "name": "@openmoca/moca-index",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Build moca-jsonl-v1 sidecar indexes for MOCA packages.",
   "license": "Apache-2.0",
   "type": "module",
@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@openmoca/moca-core": "file:../../../moca-reader-typescript",
-    "@openmoca/moca-embed": "0.6.0",
-    "@openmoca/moca-sign": "0.6.0",
+    "@openmoca/moca-embed": "0.7.0",
+    "@openmoca/moca-sign": "0.7.0",
     "adm-zip": "^0.6.0",
     "commander": "^12.1.0"
   },

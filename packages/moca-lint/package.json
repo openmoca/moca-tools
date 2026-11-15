@@ -1,6 +1,6 @@
 {
   "name": "@openmoca/moca-lint",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Check, pack and extract MOCA packages using the reference Reader.",
   "license": "Apache-2.0",
   "type": "module",
