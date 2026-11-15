@@ -51,7 +51,7 @@ test('recipients are bech32-checked, and a passphrase file has no other recipien
 test('encrypt -> Reader open -> decrypt keeps the digest; the outline is what was chosen', async () => {
   const dir = tmp();
   const plain = await readPackage(supportKb);
-  const env = join(dir, 'kb.moca.enc');
+  const env = join(dir, 'kb.mocae');
   const out = await encryptPackage({ pkg: supportKb, out: env, recipients: [recipient], outline: ['id', 'version', 'title', 'license'] });
   assert.equal(out.digest, plain.digest);
   assert.deepEqual(Object.keys(out.outline), ['id', 'version', 'title', 'license']);
@@ -71,7 +71,7 @@ test('encrypt -> Reader open -> decrypt keeps the digest; the outline is what wa
 
 test('a passphrase envelope, no outline, and the structure copy', async () => {
   const dir = tmp();
-  const env = join(dir, 'p.moca.enc');
+  const env = join(dir, 'p.mocae');
   const out = await encryptPackage({ pkg: structured, out: env, passphrase: 'pw', workFactor: 10, outline: [], structure: true });
   assert.equal(out.outline, undefined);
   assert.match(out.warnings[0], /concept graph/);
@@ -84,7 +84,7 @@ test('a passphrase envelope, no outline, and the structure copy', async () => {
 
 test('the cover copy and a catalogue outline open, and the copy is checked against the inner cover', async () => {
   const catalogue = join(spec, 'conformance/fixtures/catalogue-valid');
-  const env = join(tmp(), 'c.moca.enc');
+  const env = join(tmp(), 'c.mocae');
   const out = await encryptPackage({ pkg: catalogue, out: env, recipients: [recipient], outline: ['id', 'version', 'title', 'translations', 'tags'], cover: true });
   assert.ok(out.warnings.some((w) => /outline\/cover\.webp is readable/.test(w)));
   const zip = new AdmZip(env);
@@ -96,13 +96,13 @@ test('the cover copy and a catalogue outline open, and the copy is checked again
 });
 
 test('--cover refuses a package with no cover', async () => {
-  await assert.rejects(encryptPackage({ pkg: supportKb, out: join(tmp(), 'n.moca.enc'), recipients: [recipient], cover: true }), /no images entry with role cover/);
+  await assert.rejects(encryptPackage({ pkg: supportKb, out: join(tmp(), 'n.mocae'), recipients: [recipient], cover: true }), /no images entry with role cover/);
 });
 
 test('encrypt refuses an invalid package, an envelope, an unknown outline field and an existing output', async () => {
   const dir = tmp();
   await assert.rejects(encryptPackage({ pkg: join(spec, 'conformance/fixtures/type-missing'), out: join(dir, 'a'), recipients: [recipient] }), /not valid/);
-  await assert.rejects(encryptPackage({ pkg: join(spec, 'conformance/fixtures/envelopes/x25519.moca.enc'), out: join(dir, 'b'), recipients: [recipient] }), /already an envelope/);
+  await assert.rejects(encryptPackage({ pkg: join(spec, 'conformance/fixtures/envelopes/x25519.mocae'), out: join(dir, 'b'), recipients: [recipient] }), /already an envelope/);
   await assert.rejects(encryptPackage({ pkg: supportKb, out: join(dir, 'c'), recipients: [recipient], outline: ['nodes'] }), /not an outline field/);
   writeFileSync(join(dir, 'd'), '');
   await assert.rejects(encryptPackage({ pkg: supportKb, out: join(dir, 'd'), recipients: [recipient] }), /already exists/);
@@ -110,7 +110,7 @@ test('encrypt refuses an invalid package, an envelope, an unknown outline field 
 
 test('decrypt refuses a wrong key and writes nothing', async () => {
   const dir = tmp();
-  const env = join(dir, 'kb.moca.enc');
+  const env = join(dir, 'kb.mocae');
   await encryptPackage({ pkg: supportKb, out: env, recipients: [recipient] });
   const other = readFileSync(join(spec, 'conformance/fixtures/envelopes/keys/INSECURE-other.txt'), 'utf8').split('\n').filter((l) => l.startsWith('AGE-SECRET-KEY-1'));
   await assert.rejects(decryptEnvelope({ envelope: env, out: join(dir, 'x.moca'), identities: other }), /E002_DECRYPTION_FAILED/);
@@ -120,9 +120,9 @@ test('decrypt refuses a wrong key and writes nothing', async () => {
 test('the CLI reads a passphrase only from the environment', () => {
   const dir = tmp();
   const bin = fileURLToPath(new URL('../bin/moca-sign.js', import.meta.url));
-  const r = spawnSync(process.execPath, [bin, 'encrypt', supportKb, '-o', join(dir, 'p.moca.enc'), '--passphrase-env', 'MOCA_TEST_PW', '--work-factor', '10'], { env: { ...process.env, MOCA_TEST_PW: 'pw' } });
+  const r = spawnSync(process.execPath, [bin, 'encrypt', supportKb, '-o', join(dir, 'p.mocae'), '--passphrase-env', 'MOCA_TEST_PW', '--work-factor', '10'], { env: { ...process.env, MOCA_TEST_PW: 'pw' } });
   assert.equal(r.status, 0, r.stderr.toString());
-  const missing = spawnSync(process.execPath, [bin, 'encrypt', supportKb, '-o', join(dir, 'q.moca.enc'), '--passphrase-env', 'MOCA_TEST_UNSET']);
+  const missing = spawnSync(process.execPath, [bin, 'encrypt', supportKb, '-o', join(dir, 'q.mocae'), '--passphrase-env', 'MOCA_TEST_UNSET']);
   assert.equal(missing.status, 2);
   assert.match(missing.stderr.toString(), /MOCA_TEST_UNSET is not set/);
 });

@@ -13,7 +13,7 @@ export class UsageError extends Error {}
  * @param {string} p.target  directory or .moca archive
  * @param {string} [p.trustRoot]  trust-root file
  * @param {string[]} [p.memberDirs]  where to look for members
- * @param {string} [p.sidecar]  sidecar directory or .zip to check against the package
+ * @param {string} [p.sidecar]  sidecar folder or .mocai archive to check against the package
  * @param {boolean} [p.strict]
  * @param {{ decryptor?: object, keyProvider?: Function }} [p.envelope]  opens an envelope (encrypted packages); the CLI
  *   passes the age decryptor and the user's key here, so this module never loads cryptography itself

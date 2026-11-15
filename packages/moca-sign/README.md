@@ -14,8 +14,8 @@ moca-sign trust add <trust-root> --keyid <id> --public-key <pem> [--identity tex
 moca-sign trust add <trust-root> --issuer <url> --subject <identity> [--roles package,review,issued-copy] [--ids ids]
 moca-sign trust list <trust-root>
 moca-sign trust remove <trust-root> (--keyid <id> | --issuer <url> --subject <identity>)
-moca-sign encrypt <package> -o <file.moca.enc> (-r <age1...>... | -R <file>... | --passphrase-env <name> [--work-factor n]) [--outline id,version,title | --no-outline] [--structure] [--cover] [--force]
-moca-sign decrypt <file.moca.enc> -o <file.moca> (-i <identity-file>... | --passphrase-env <name>) [--force]
+moca-sign encrypt <package> -o <file.mocae> (-r <age1...>... | -R <file>... | --passphrase-env <name> [--work-factor n]) [--outline id,version,title | --no-outline] [--structure] [--cover] [--force]
+moca-sign decrypt <file.mocae> -o <file.moca> (-i <identity-file>... | --passphrase-env <name>) [--force]
 ```
 
 - `keygen` creates an Ed25519 key pair and adds the public key to

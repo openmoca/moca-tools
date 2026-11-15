@@ -14,13 +14,13 @@ program.name('moca-index').description('Build and check moca-jsonl-v1 sidecar in
 
 program.command('build')
   .argument('<package>', 'package directory or .moca archive')
-  .option('-o, --out <path>', 'sidecar directory (or .zip with --zip); keep it outside the package')
+  .option('-o, --out <path>', 'sidecar: a <name>.mocai archive, or any other name for a folder; keep it outside the package')
   .option('--envelope <file>', 'instead of -o: add the index to this envelope of the package, as index.age, encrypted to the recipients below')
   .option('-r, --recipient <age1...>', 'with --envelope: an X25519 recipient; repeat for several', (v, a) => [...a, v], [])
   .option('-R, --recipients-file <file>', 'with --envelope: a file of recipients, one per line', (v, a) => [...a, v], [])
   .option('--passphrase-env <name>', 'with --envelope: encrypt to one passphrase read from this environment variable')
   .option('--work-factor <n>', 'with --passphrase-env: scrypt work factor, log2 N', (v) => Number.parseInt(v, 10), 18)
-  .option('--zip', 'write a single .zip archive', false)
+  .option('--zip', 'write the Zip archive whatever the name (it is written for a .mocai name anyway)', false)
   .option('--chunk <mode>', `chunking: ${CHUNKERS.join(' | ')}`, 'node')
   .option('--max-chars <n>', 'split any chunk longer than this many characters (at a blank line, line, sentence or space)', toInt)
   .option('--overlap <n>', 'characters each split window repeats from the one before (needs --max-chars)', toInt, 0)
@@ -55,12 +55,12 @@ program.command('build')
       console.log(`Added index.age to ${r.envelope} (${r.items} item(s)) bound to ${r.digest}`);
       return;
     }
-    const r = await buildSidecar({ pkg, out: opts.out, zip: opts.zip, chunker: opts.chunk, maxChars: opts.maxChars, overlap: opts.overlap, force: opts.force, embedder });
+    const r = await buildSidecar({ pkg, out: opts.out, zip: opts.zip || /\.mocai$/i.test(opts.out ?? ''), chunker: opts.chunk, maxChars: opts.maxChars, overlap: opts.overlap, force: opts.force, embedder });
     console.log(`Wrote ${r.out} (${r.items} item(s)) bound to ${r.digest}`);
   }));
 
 program.command('check')
-  .argument('<sidecar>', 'sidecar directory or .zip')
+  .argument('<sidecar>', 'sidecar folder or .mocai archive')
   .requiredOption('--package <path>', 'the package the sidecar should be bound to')
   .action((sidecar, opts) => run(async () => {
     const pkg = await readPackage(opts.package);

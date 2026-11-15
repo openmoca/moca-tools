@@ -101,14 +101,14 @@ test('pack warns when an encrypted-only package is packed plain, and refuses und
 
 test('lint reads an envelope like a Reader: E001 without a key, the package inside with one', async () => {
   const envelopes = join(repo, 'conformance/fixtures/envelopes');
-  const closed = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'x25519.moca.enc')], { encoding: 'utf8' });
+  const closed = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'x25519.mocae')], { encoding: 'utf8' });
   assert.equal(closed.status, 1);
   assert.match(closed.stdout, /E001_ENCRYPTED_NO_KEY/);
   assert.match(closed.stderr, /--identity/);
-  const open = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'x25519.moca.enc'), '--identity', join(envelopes, 'keys/INSECURE-test.txt')], { encoding: 'utf8' });
+  const open = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'x25519.mocae'), '--identity', join(envelopes, 'keys/INSECURE-test.txt')], { encoding: 'utf8' });
   assert.equal(open.status, 0, open.stdout);
-  const mismatch = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'outline-mismatch.moca.enc'), '--identity', join(envelopes, 'keys/INSECURE-test.txt')], { encoding: 'utf8' });
+  const mismatch = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'outline-mismatch.mocae'), '--identity', join(envelopes, 'keys/INSECURE-test.txt')], { encoding: 'utf8' });
   assert.match(mismatch.stdout, /E004_OUTLINE_MISMATCH/);
-  const marker = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'unknown-format.moca.enc')], { encoding: 'utf8' });
+  const marker = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'unknown-format.mocae')], { encoding: 'utf8' });
   assert.match(marker.stdout, /E005_ENVELOPE_INVALID/);
 });

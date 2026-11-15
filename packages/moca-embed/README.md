@@ -31,7 +31,7 @@ import { Library, Search, LexicalBackend, DenseBackend, HybridBackend, readPacka
 import { standardEmbedder } from '@openmoca/moca-embed';
 
 const pkg = await readPackage('acme-support.moca', { trustRoot: 'trust-root.json' });
-const sidecar = bindSidecar('acme-support.moca.idx', pkg);
+const sidecar = bindSidecar('acme-support.mocai', pkg);
 const library = new Library().add(pkg, sidecar);
 
 // The same model the index was built with; its files are checked before loading.
@@ -40,7 +40,7 @@ const backend = new HybridBackend({ lexical: new LexicalBackend(library), dense:
 const results = await new Search(library, { backend, audiences: ['public'] }).search('money back after buying');
 ```
 
-Build the index with the same model: `npx @openmoca/moca-index build acme-support.moca -o acme-support.moca.idx --chunk headings --model bge-small-en-v1.5`.
+Build the index with the same model: `npx @openmoca/moca-index build acme-support.moca -o acme-support.mocai --chunk headings --model bge-small-en-v1.5`.
 
 ## How each model is run
 

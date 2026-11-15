@@ -5,7 +5,7 @@ Builds [sidecar indexes](https://github.com/openmoca/moca-spec/blob/main/spec/mo
 
 ```sh
 moca-index build <package> -o <out> [--zip] [--chunk node|headings] [--max-chars n [--overlap n]] [--force] [--model name [--models folder]] [--embedder module]
-moca-index build <package> --envelope <file.moca.enc> (-r <age1...>... | -R <file>... | --passphrase-env <name>) [build options]
+moca-index build <package> --envelope <file.mocae> (-r <age1...>... | -R <file>... | --passphrase-env <name>) [build options]
 moca-index check <sidecar> --package <package>
 ```
 

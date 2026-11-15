@@ -19,7 +19,7 @@ const supportKb = join(spec, 'examples/support-kb');
 const opener = (file) => ({ decryptor: ageDecryptor, keyProvider: () => ({ identities: idsIn(file) }) });
 
 test('index.age is added, stored, and binds through the same key provider', async () => {
-  const env = join(mkdtempSync(join(tmpdir(), 'moca-index-env-')), 'kb.moca.enc');
+  const env = join(mkdtempSync(join(tmpdir(), 'moca-index-env-')), 'kb.mocae');
   await encryptPackage({ pkg: supportKb, out: env, recipients: [recipient] });
   const r = await addEnvelopeIndex({ pkg: supportKb, envelope: env, recipients: [recipient] });
   assert.ok(r.items > 0);
@@ -34,7 +34,7 @@ test('index.age is added, stored, and binds through the same key provider', asyn
 });
 
 test('--envelope refuses another package\'s envelope, and a second index without --force', async () => {
-  const env = join(mkdtempSync(join(tmpdir(), 'moca-index-env-')), 'kb.moca.enc');
+  const env = join(mkdtempSync(join(tmpdir(), 'moca-index-env-')), 'kb.mocae');
   await encryptPackage({ pkg: supportKb, out: env, recipients: [recipient] });
   await assert.rejects(addEnvelopeIndex({ pkg: join(spec, 'conformance/fixtures/valid-minimal'), envelope: env, recipients: [recipient] }), /outline id/);
   await addEnvelopeIndex({ pkg: supportKb, envelope: env, recipients: [recipient] });

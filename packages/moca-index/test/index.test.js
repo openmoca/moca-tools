@@ -11,7 +11,7 @@ const repo = process.env.MOCA_SPEC_DIR ?? fileURLToPath(new URL('../../../../moc
 const kb = join(repo, 'examples/support-kb');
 
 test('builds a sidecar bound to the package digest that a Reader accepts', async () => {
-  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.moca.idx');
+  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.mocai');
   const built = await buildSidecar({ pkg: kb, out, chunker: 'headings' });
   const pkg = await readPackage(kb);
   assert.equal(built.digest, pkg.digest);
@@ -32,7 +32,7 @@ test('chunk offsets are byte offsets into the node file', async () => {
 });
 
 test('a zipped sidecar works and search uses its chunks', async () => {
-  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.moca.idx.zip');
+  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.mocai');
   await buildSidecar({ pkg: kb, out, zip: true, chunker: 'headings' });
   const pkg = await readPackage(kb);
   const bound = bindSidecar(out, pkg);
@@ -44,7 +44,7 @@ test('a zipped sidecar works and search uses its chunks', async () => {
 
 test('a sidecar is stale as soon as the package changes', async () => {
   const pkg = await readPackage(kb);
-  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.moca.idx');
+  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.mocai');
   await buildSidecar({ pkg: kb, out });
   const changed = { ...pkg, digest: `sha256:${'f'.repeat(64)}` };
   assert.equal(bindSidecar(out, changed).diagnostics[0].code, 'S003_SIDECAR_STALE');
@@ -61,7 +61,7 @@ const bagOfWords = (name = 'bow', dimensions = 8) => ({
 });
 
 test('with a host embedder the sidecar carries vectors and the model, and dense search needs the same model', async () => {
-  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.moca.idx');
+  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.mocai');
   await buildSidecar({ pkg: kb, out, embedder: bagOfWords() });
   const index = JSON.parse(readFileSync(join(out, 'index.json'), 'utf8'));
   assert.equal(index.indexType, 'hybrid');
@@ -79,7 +79,7 @@ test('with a host embedder the sidecar carries vectors and the model, and dense 
 });
 
 test('chunks are embedded as documents, and declared prefixes are recorded for Readers to compare', async () => {
-  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.moca.idx');
+  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.mocai');
   const roles = [];
   const e5 = { ...bagOfWords('e5'), queryPrefix: 'query: ', documentPrefix: 'passage: ' };
   await buildSidecar({ pkg: kb, out, embedder: { ...e5, embed: async (texts, options) => { roles.push(options?.role); return e5.embed(texts); } } });
@@ -96,7 +96,7 @@ test('chunks are embedded as documents, and declared prefixes are recorded for R
 });
 
 test('an embedder that returns the wrong shape is refused', async () => {
-  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.moca.idx');
+  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.mocai');
   const bad = { name: 'bad', dimensions: 4, embed: async (texts) => texts.map(() => [1, 2]) };
   await assert.rejects(buildSidecar({ pkg: kb, out, embedder: bad }), /4-dimension vector/);
 });
@@ -130,7 +130,7 @@ test('a chunk that fits is kept whole, and a word with no break is cut but never
 });
 
 test('the size limit is recorded in index.json, and bad limits are refused', async () => {
-  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.moca.idx');
+  const out = join(mkdtempSync(join(tmpdir(), 'moca-index-')), 'kb.mocai');
   await buildSidecar({ pkg: kb, out, chunker: 'headings', maxChars: 200, overlap: 20 });
   const index = JSON.parse(readFileSync(join(out, 'index.json'), 'utf8'));
   assert.deepEqual(index.chunking, { strategy: 'headings-h1-h3', maxChars: 200, overlap: 20 });

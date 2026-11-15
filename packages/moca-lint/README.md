@@ -68,7 +68,7 @@ No vocabulary ships with moca-lint.
   with the nearest label.
 
 **Envelopes** (moca-spec encrypted packages). `lint` and `info` read a
-`.moca.enc` like a Reader: without a key they check the entries and
+`.mocae` like a Reader: without a key they check the entries and
 `moca-enc.json` and report `E001`; with `--identity <file>` or
 `--passphrase-env <name>` they open it, run the outline check and lint the
 package inside.
