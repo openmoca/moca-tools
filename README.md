@@ -40,9 +40,13 @@ depends on it.
 3. Point the `MOCA_*_REF` pins in `.github/workflows/test.yml` at the release tags
    ([moca-spec docs/releasing.md](https://github.com/openmoca/moca-spec/blob/main/docs/releasing.md#moving-the-pins)).
 4. `npm test` passes.
-5. Tag `vX.Y.Z` and publish a GitHub release whose notes are the changelog
-   section.
-6. From each package folder, at the tagged commit: `npm publish --access public`.
+5. Merge to main, tag `vX.Y.Z` on main and push the tag. The release workflow
+   (`.github/workflows/release.yml`) checks that the versions match the tag and
+   that the `@openmoca/moca-core` range is on npm, then publishes the four
+   packages through trusted publishing, with provenance: `moca-embed`,
+   `moca-sign` and `moca-lint`, then `moca-index`. No npm token is kept
+   anywhere.
+6. Publish a GitHub release whose notes are the changelog section.
 
 ## Licence
 

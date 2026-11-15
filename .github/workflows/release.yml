@@ -1,0 +1,53 @@
+name: Release
+
+# Push a vX.Y.Z tag on a commit in main: publishes the four @openmoca tool packages to npm with provenance,
+# in dependency order: moca-embed, moca-sign and moca-lint, then moca-index, which depends on embed and sign.
+#
+# Trusted publishing: npm accepts this workflow, in the `release` environment, through a short-lived
+# OIDC token from GitHub Actions. There is no npm token in this repository.
+#
+# Tag this repository only once the @openmoca/moca-core version the packages name is on npm
+# (moca-reader-typescript is released first). The workflow checks, and stops if it is not.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@^11.5.1
+      - name: The tag is on main, the versions match, and every dependency is on npm
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$GITHUB_REF_NAME is not on main"; exit 1; }
+          for p in moca-embed moca-sign moca-lint moca-index; do
+            version=$(node -p "require('./packages/$p/package.json').version")
+            [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "::error::$p is $version, the tag is $GITHUB_REF_NAME"; exit 1; }
+            core=$(node -p "require('./packages/$p/package.json').dependencies['@openmoca/moca-core'] ?? ''")
+            case "$core" in
+              file:*) echo "::error::$p still links @openmoca/moca-core as $core; name the released range"; exit 1 ;;
+              '') ;;
+              *) [ -n "$(npm view "@openmoca/moca-core@$core" version)" ] || { echo "::error::@openmoca/moca-core@$core is not on npm yet"; exit 1; } ;;
+            esac
+          done
+      - run: npm ci
+      - run: npm publish --access public -w @openmoca/moca-embed
+      - run: npm publish --access public -w @openmoca/moca-sign
+      - run: npm publish --access public -w @openmoca/moca-lint
+      - run: npm publish --access public -w @openmoca/moca-index
