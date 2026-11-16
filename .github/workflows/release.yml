@@ -22,7 +22,7 @@ permissions:
 
 env:
   # Used by the dry run only, while the packages link moca-core with file:. Move it with test.yml's pin.
-  MOCA_READER_TYPESCRIPT_REF: d3c28ba0c3cd0b2458ab88191422400430a039f1  # 0.7.0 release candidate; v0.7.0 once tagged
+  MOCA_READER_TYPESCRIPT_REF: a08da113ac3e80e4ab62c777dcab4b0cb58babe2  # 0.7.0 release candidate; v0.7.0 once tagged
 
 jobs:
   check:
