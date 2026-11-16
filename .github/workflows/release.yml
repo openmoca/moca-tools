@@ -2,6 +2,9 @@ name: Release
 
 # Push a vX.Y.Z tag on a commit in main: publishes the four @openmoca tool packages to npm with provenance,
 # in dependency order: moca-embed, moca-sign and moca-lint, then moca-index, which depends on embed and sign.
+# On a pull request to main, the same packages are packed with `npm publish --dry-run`, so the release path
+# is proved before release day; nothing is published. Until moca-core is on npm, the dry run links it from
+# moca-reader-typescript at the pinned commit, as the tests do.
 #
 # Trusted publishing: npm accepts this workflow, in the `release` environment, through a short-lived
 # OIDC token from GitHub Actions. There is no npm token in this repository.
@@ -11,29 +14,38 @@ name: Release
 on:
   push:
     tags: ['v*']
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
 
+env:
+  # Used by the dry run only, while the packages link moca-core with file:. Move it with test.yml's pin.
+  MOCA_READER_TYPESCRIPT_REF: d3c28ba0c3cd0b2458ab88191422400430a039f1  # 0.7.0 release candidate; v0.7.0 once tagged
+
 jobs:
-  publish:
-    name: Publish to npm
+  check:
+    name: Check and pack (dry run)
     runs-on: ubuntu-latest
-    environment: release
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
+          path: moca-tools
           fetch-depth: 0
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          repository: ${{ github.repository_owner }}/moca-reader-typescript
+          ref: ${{ env.MOCA_READER_TYPESCRIPT_REF }}
+          path: moca-reader-typescript
+          token: ${{ secrets.MOCA_REPOS_TOKEN || github.token }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
-      # Trusted publishing needs npm 11.5.1 or later.
-      - run: npm install -g npm@^11.5.1
       - name: The tag is on main, the versions match, and every dependency is on npm
+        if: github.event_name == 'push'
+        working-directory: moca-tools
         run: |
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$GITHUB_REF_NAME is not on main"; exit 1; }
           for p in moca-embed moca-sign moca-lint moca-index; do
@@ -46,6 +58,35 @@ jobs:
               *) [ -n "$(npm view "@openmoca/moca-core@$core" version)" ] || { echo "::error::@openmoca/moca-core@$core is not on npm yet"; exit 1; } ;;
             esac
           done
+      - run: npm ci
+        if: github.event_name == 'pull_request'
+        working-directory: moca-reader-typescript
+      - run: npm ci
+        working-directory: moca-tools
+      - name: Pack each package (dry run)
+        working-directory: moca-tools
+        run: |
+          for p in moca-embed moca-sign moca-lint moca-index; do
+            npm publish --dry-run --access public -w "@openmoca/$p"
+          done
+
+  publish:
+    name: Publish to npm
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@^11.5.1
       - run: npm ci
       - run: npm publish --access public -w @openmoca/moca-embed
       - run: npm publish --access public -w @openmoca/moca-sign
