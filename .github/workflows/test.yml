@@ -25,11 +25,11 @@ jobs:
     name: Public dependencies only
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: moca-tools
       # The check lives in moca-spec, the one copy every open repository runs.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/moca-spec
           ref: ${{ env.MOCA_SPEC_REF }}
@@ -49,10 +49,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: moca-tools
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/moca-spec
           ref: ${{ env.MOCA_SPEC_REF }}
