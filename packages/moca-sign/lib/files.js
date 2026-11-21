@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 
 /** A key id or reviewer as a file-name part: lower case letters, digits and hyphens. */
-export const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'x';
+export const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'x';
 
 /** A file name stem a user chose: letters, digits, `.`, `_` and `-`, starting with a letter or digit; no path. */
 const STEM = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
