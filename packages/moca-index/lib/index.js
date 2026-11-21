@@ -2,10 +2,13 @@
 // (spec/moca-sidecar-index-spec.md): chunks with byte offsets and text, and,
 // when the host supplies an embedder, a `vector` per item and the embedder's
 // `model` in index.json (a hybrid sidecar).
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { basename, dirname, join, resolve } from 'node:path';
 import AdmZip from 'adm-zip';
 import { readPackage, bindSidecar, PORTABLE_FORMAT } from '@openmoca/moca-core';
+import { ageDecryptor } from '@openmoca/moca-core/age';
+import { ageEncrypt } from '@openmoca/moca-sign';
 
 export class IndexError extends Error {}
 
@@ -118,7 +121,8 @@ function byteCounter(t) {
  * @param {boolean} [p.force]
  * @param {{ name: string, version?: string, dimensions: number, queryPrefix?: string, documentPrefix?: string, embed: (texts: string[], options?: { role: 'query'|'document' }) => number[][]|Promise<number[][]> }} [p.embedder]
  */
-export async function buildSidecar({ pkg, out, zip = false, chunker = 'node', maxChars, overlap = 0, force = false, embedder }) {
+/** The sidecar's files, in memory, for a valid package: { result, files, items }. */
+async function sidecarFiles({ pkg, chunker = 'node', maxChars, overlap = 0, embedder }) {
   if (!CHUNKERS.includes(chunker)) throw new IndexError(`unknown chunker "${chunker}"; use ${CHUNKERS.join(' or ')}`);
   if (maxChars !== undefined && !(Number.isInteger(maxChars) && maxChars >= 100)) throw new IndexError('--max-chars must be a whole number, at least 100');
   if (!(Number.isInteger(overlap) && overlap >= 0)) throw new IndexError('--overlap must be a whole number, 0 or more');
@@ -184,24 +188,77 @@ export async function buildSidecar({ pkg, out, zip = false, chunker = 'node', ma
     'payload/items.jsonl': Buffer.from(`${items.map((i) => JSON.stringify(i)).join('\n')}\n`, 'utf8'),
   };
   if (vectors) files['payload/vectors.f32'] = float32Bytes(vectors, embedder.dimensions);
+  return { result, files, items };
+}
 
-  if (existsSync(out) && !force && (!zip ? readdirSync(out).length > 0 : true)) {
-    throw new IndexError(`${out} already exists; pass --force to replace it`);
-  }
-  if (zip) {
-    const archive = new AdmZip();
-    for (const [name, bytes] of Object.entries(files)) archive.addFile(name, bytes);
-    archive.writeZip(out);
-  } else {
-    rmSync(out, { recursive: true, force: true });
-    mkdirSync(join(out, 'payload'), { recursive: true });
-    for (const [name, bytes] of Object.entries(files)) writeFileSync(join(out, ...name.split('/')), bytes);
-  }
+/** A temporary name beside `out`, keeping its extension, so a check reads it as it will read `out`. */
+const besideName = (out, tag) => join(dirname(resolve(out)), `.${randomBytes(6).toString('hex')}.${tag}-${basename(out)}`);
 
-  const check = bindSidecar(out, result);
-  if (!check.usable) {
-    rmSync(out, { recursive: true, force: true });
-    throw new IndexError(`the built sidecar failed its own check: ${check.diagnostics.map((d) => d.message).join('; ')}`);
+/** True when `path` is a sidecar: a folder, or a zip archive, with index.json at its root. */
+function isSidecar(path) {
+  const st = statSync(path);
+  if (st.isDirectory()) return existsSync(join(path, 'index.json'));
+  if (!st.isFile()) return false;
+  try {
+    return new AdmZip(path).getEntry('index.json') !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Moves a staged file or folder to `out`. Anything already at `out` is moved aside first, and deleted only once the
+ * new one is in place; if the move fails, it is put back.
+ */
+function replaceWith(staged, out) {
+  if (!existsSync(out)) {
+    renameSync(staged, out);
+    return;
+  }
+  const aside = besideName(out, 'old');
+  renameSync(out, aside);
+  try {
+    renameSync(staged, out);
+  } catch (err) {
+    renameSync(aside, out);
+    throw err;
+  }
+  rmSync(aside, { recursive: true, force: true });
+}
+
+/**
+ * Writes a sidecar folder, or a .mocai archive with `zip`. It is built beside `out`, checked against the package, and
+ * only then moved into place. `force` replaces an existing sidecar, and only a sidecar: a folder or archive with no
+ * index.json is never removed.
+ */
+export async function buildSidecar({ pkg, out, zip = false, chunker = 'node', maxChars, overlap = 0, force = false, embedder }) {
+  const { result, files, items } = await sidecarFiles({ pkg, chunker, maxChars, overlap, embedder });
+
+  if (existsSync(out)) {
+    const emptyFolder = statSync(out).isDirectory() && readdirSync(out).length === 0;
+    if (!emptyFolder) {
+      if (!force) throw new IndexError(`${out} already exists; pass --force to replace it`);
+      if (!isSidecar(out)) throw new IndexError(`${out} is not a sidecar (it has no index.json), so --force will not replace it`);
+    }
+  }
+  mkdirSync(dirname(resolve(out)), { recursive: true });
+  const staged = besideName(out, 'partial');
+  try {
+    if (zip) {
+      const archive = new AdmZip();
+      for (const [name, bytes] of Object.entries(files)) archive.addFile(name, bytes);
+      writeFileSync(staged, archive.toBuffer(), { flag: 'wx' });
+    } else {
+      mkdirSync(join(staged, 'payload'), { recursive: true });
+      for (const [name, bytes] of Object.entries(files)) writeFileSync(join(staged, ...name.split('/')), bytes);
+    }
+    const check = bindSidecar(staged, result);
+    if (!check.usable) {
+      throw new IndexError(`the built sidecar failed its own check, so nothing was written: ${check.diagnostics.map((d) => d.message).join('; ')}`);
+    }
+    replaceWith(staged, out);
+  } finally {
+    rmSync(staged, { recursive: true, force: true });
   }
   return { out, items: items.length, digest: result.digest };
 }
@@ -211,4 +268,57 @@ export function float32Bytes(vectors, dimensions) {
   const buf = Buffer.alloc(vectors.length * dimensions * 4);
   vectors.forEach((v, i) => v.forEach((x, d) => buf.writeFloatLE(x, (i * dimensions + d) * 4)));
   return buf;
+}
+
+/**
+ * Builds a sidecar for a plain package and adds it to that package's envelope as index.age, encrypted to the same
+ * recipients (moca-spec encrypted packages §6). Only the Producer knows the recipients, so it passes them again.
+ * The index is checked against the package before it is encrypted; nothing plain is written to disk.
+ * @param {{ pkg: string, envelope: string, recipients?: string[], passphrase?: string, workFactor?: number,
+ *   chunker?: string, maxChars?: number, overlap?: number, embedder?: object, force?: boolean }} p
+ */
+export async function addEnvelopeIndex({ pkg, envelope, recipients = [], passphrase, workFactor, force = false, ...build }) {
+  const { result, files, items } = await sidecarFiles({ pkg, ...build });
+  const env = new AdmZip(envelope);
+  const marker = env.getEntry('moca-enc.json');
+  if (!marker || !env.getEntry('package.age')) throw new IndexError(`${envelope} is not an envelope`);
+  if (env.getEntry('index.age') && !force) throw new IndexError(`${envelope} already has an index.age; pass --force to replace it`);
+  // The outline, when present, must describe this package, or the index belongs elsewhere.
+  const outline = JSON.parse(marker.getData().toString('utf8')).outline ?? {};
+  for (const k of ['id', 'version']) {
+    if (outline[k] !== undefined && outline[k] !== result.manifest[k]) throw new IndexError(`the envelope's outline ${k} is ${outline[k]}, the package's is ${result.manifest[k]}`);
+  }
+  // With a passphrase the envelope can be opened, so check that it holds this exact package. With recipients only it
+  // cannot: without an outline id and version, say so.
+  const warnings = [];
+  if (passphrase !== undefined) {
+    const inner = await readPackage(envelope, { decryptor: ageDecryptor, keyProvider: () => ({ passphrase }) });
+    if (!inner.envelope?.opened) throw new IndexError(`the passphrase does not open ${envelope}`);
+    if (inner.digest !== result.digest) throw new IndexError(`${envelope} holds a package with digest ${inner.digest}; the index is for ${result.digest}`);
+  } else if (outline.id === undefined || outline.version === undefined) {
+    warnings.push(`the envelope's outline has no id and version, so moca-index cannot check that it holds this package; a Reader ignores an index bound to another digest`);
+  }
+  const sidecar = new AdmZip();
+  for (const [name, bytes] of Object.entries(files)) sidecar.addFile(name, bytes);
+  const plain = sidecar.toBuffer();
+  const check = bindSidecar(plain, result);
+  if (!check.usable) throw new IndexError(`the built sidecar failed its own check: ${check.diagnostics.map((d) => d.message).join('; ')}`);
+  let sealed;
+  try {
+    sealed = ageEncrypt(plain, { recipients, passphrase, workFactor });
+  } catch (err) {
+    throw new IndexError(err.message);
+  }
+  if (env.getEntry('index.age')) env.deleteFile('index.age');
+  env.addFile('index.age', sealed);
+  env.getEntry('index.age').header.method = 0;
+  // Write beside the envelope, then rename: the envelope is never left half written.
+  const staged = besideName(envelope, 'partial');
+  try {
+    writeFileSync(staged, env.toBuffer(), { flag: 'wx' });
+    renameSync(staged, envelope);
+  } finally {
+    rmSync(staged, { force: true });
+  }
+  return { envelope, items: items.length, digest: result.digest, warnings };
 }

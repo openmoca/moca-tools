@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import {
   generateKeyPair, signPackage, reviewNodes, verifyPackage, SignError,
-  readTrustRoot, writeTrustRoot, addKey, addSigstoreIdentity, removeEntry, describeTrustRoot, checkPublicKey,
-  parseRoles, parseExpires, TrustRootError,
+  readTrustRoot, writeTrustRoot, checkTrustRoot, addKey, checkStem, addSigstoreIdentity, removeEntry, describeTrustRoot, checkPublicKey,
+  parseRoles, parseIds, parseExpires, TrustRootError, issueCopy, IssueError,
+  encryptPackage, decryptEnvelope, readIdentities, readRecipients, passphraseFromEnv, parseOutlineFields, EncryptError, DEFAULT_OUTLINE,
+  MIN_WORK_FACTOR, MAX_WORK_FACTOR,
 } from '../lib/index.js';
 import { formatText } from '../lib/deps.js';
 
@@ -35,15 +37,33 @@ program.command('keygen')
   .option('--roles <roles>', 'comma-separated roles the key may sign for: package,review')
   .option('--expires <date>', 'when readers stop trusting the key, e.g. 2027-01-01')
   .action((opts) => run(() => {
+    // The key id names the key files, so it must be a plain file name.
+    checkStem(opts.keyid, (m) => new SignError(`--keyid: ${m}`));
     const roles = parseRoles(opts.roles);
     const expires = parseExpires(opts.expires);
-    const { privateKeyPem, publicKeyPem } = generateKeyPair();
-    mkdirSync(opts.out, { recursive: true });
-    writeFileSync(join(opts.out, `${opts.keyid}.pem`), privateKeyPem, { mode: 0o600 });
-    writeFileSync(join(opts.out, `${opts.keyid}.pub.pem`), publicKeyPem);
+    const privatePath = join(opts.out, `${opts.keyid}.pem`);
+    const publicPath = join(opts.out, `${opts.keyid}.pub.pem`);
     const rootPath = join(opts.out, 'trust-root.json');
-    const { doc } = addKey(readTrustRoot(rootPath), { keyid: opts.keyid, publicKey: publicKeyPem, identity: opts.identity, roles, expires });
-    writeTrustRoot(rootPath, doc);
+    for (const p of [privatePath, publicPath]) {
+      if (existsSync(p)) throw new SignError(`${p} already exists; keygen never replaces a key. Choose another --keyid`);
+    }
+    // Everything is checked before anything is written.
+    const { privateKeyPem, publicKeyPem } = generateKeyPair();
+    const { doc, replaced } = addKey(readTrustRoot(rootPath), { keyid: opts.keyid, publicKey: publicKeyPem, identity: opts.identity, roles, expires });
+    if (replaced) throw new SignError(`${rootPath} already trusts a key ${opts.keyid}; keygen never replaces a key. Choose another --keyid`);
+    checkTrustRoot(doc, rootPath);
+    mkdirSync(opts.out, { recursive: true });
+    try {
+      writeFileSync(privatePath, privateKeyPem, { mode: 0o600, flag: 'wx' });
+      chmodSync(privatePath, 0o600);
+      writeFileSync(publicPath, publicKeyPem, { flag: 'wx' });
+      writeTrustRoot(rootPath, doc);
+    } catch (err) {
+      // Leave no half-made key behind: a key that is not in the trust root is no use, and the files are new.
+      rmSync(privatePath, { force: true });
+      rmSync(publicPath, { force: true });
+      throw err;
+    }
     console.log(`Wrote ${opts.keyid}.pem and ${opts.keyid}.pub.pem, and added the key to ${rootPath}. Keep private keys out of every package.`);
   }));
 
@@ -60,9 +80,11 @@ trust.command('add')
   .option('--expires <date>', 'stop trusting the key after this date, e.g. 2027-01-01')
   .option('--issuer <url>', 'Sigstore: the OIDC issuer, e.g. https://token.actions.githubusercontent.com')
   .option('--subject <identity>', 'Sigstore: the identity it signs as, e.g. a workflow address or an email')
-  .option('--roles <roles>', 'what it may sign: package, review, or package,review (default: both)')
+  .option('--roles <roles>', 'what it may sign: package, review, issued-copy, comma-separated (default: package,review)')
+  .option('--ids <ids>', 'package ids, or prefixes ending in /, : or #, it may speak for; required with issued-copy')
   .action((path, opts) => run(() => {
     const roles = parseRoles(opts.roles);
+    const ids = parseIds(opts.ids, roles);
     const isKey = opts.keyid !== undefined || opts.publicKey !== undefined;
     const isSigstore = opts.issuer !== undefined || opts.subject !== undefined;
     if (isKey === isSigstore) throw new TrustRootError('add either a key (--keyid and --public-key) or a Sigstore identity (--issuer and --subject)');
@@ -71,13 +93,13 @@ trust.command('add')
       if (!opts.keyid || !opts.publicKey) throw new TrustRootError('a key needs both --keyid and --public-key');
       const { pem } = checkPublicKey(readFileSync(opts.publicKey, 'utf8'));
       const expires = parseExpires(opts.expires);
-      const { doc, replaced } = addKey(before, { keyid: opts.keyid, publicKey: pem, identity: opts.identity, roles, expires });
+      const { doc, replaced } = addKey(before, { keyid: opts.keyid, publicKey: pem, identity: opts.identity, roles, expires, ids });
       writeTrustRoot(path, doc);
       console.log(`${replaced ? 'Replaced' : 'Added'} key ${opts.keyid} in ${path}, trusted for ${(roles ?? ['package', 'review']).join(' and ')}.`);
       if (expires && Date.parse(expires) < Date.now()) console.warn(`moca-sign: warning: the key expired on ${expires}, so nothing it signed will verify.`);
     } else {
       if (opts.expires !== undefined || opts.identity !== undefined) throw new TrustRootError('--expires and --identity are for keys; a Sigstore identity is named by --subject');
-      const { doc, replaced } = addSigstoreIdentity(before, { issuer: opts.issuer, subject: opts.subject, roles });
+      const { doc, replaced } = addSigstoreIdentity(before, { issuer: opts.issuer, subject: opts.subject, roles, ids });
       writeTrustRoot(path, doc);
       console.log(`${replaced ? 'Replaced' : 'Added'} Sigstore identity ${opts.subject} in ${path}, trusted for ${(roles ?? ['package', 'review']).join(' and ')}.`);
     }
@@ -123,7 +145,7 @@ keyOptions(program.command('review')
   .option('--at <iso>', 'review time (default: now)')
   .option('--scope <text>', 'what the review covered')
   .option('--note <text>', 'free-text note')
-  .option('--name <stem>', 'file name stem under attestations/reviews/'))
+  .option('--name <stem>', 'file name stem under attestations/reviews/: letters, digits, ".", "_" or "-"'))
   .action((dir, opts) => run(async () => {
     if (!['accurate', 'needs-change', 'inaccurate'].includes(opts.outcome)) throw new SignError(`unknown outcome ${opts.outcome}`);
     const out = await reviewNodes({
@@ -131,6 +153,19 @@ keyOptions(program.command('review')
       scope: opts.scope, note: opts.note, name: opts.name, ...keyArgs(opts),
     });
     console.log(`Reviewed ${out.files.map((f) => f.path).join(', ')}\nWrote ${out.file}`);
+  }));
+
+program.command('issue')
+  .description('bind a marked copy to its publisher\'s package (writes attestations/issued.<keyid>.dsse.json); it never marks anything')
+  .argument('<copy>', 'the marked copy: a directory made from the original, with some files under content/ or media/ changed')
+  .requiredOption('--original <dir>', 'the publisher\'s package, as published and signed')
+  .requiredOption('--key <pem>', 'the issuer\'s Ed25519 private key (PKCS#8 PEM)')
+  .requiredOption('--keyid <id>', 'key id recorded in the DSSE envelope; must match the reader\'s trust root')
+  .option('--trust-root <file>', 'also require the original\'s publisher signature to verify against this trust root')
+  .action((copy, opts) => run(async () => {
+    const out = await issueCopy({ original: opts.original, copy, privateKeyPem: readFileSync(opts.key, 'utf8'), keyid: opts.keyid, trustRoot: opts.trustRoot });
+    if (out.copied.length > 0) console.log(`Copied the publisher's attestations: ${out.copied.join(', ')}`);
+    console.log(`Issued ${out.digest}\nOriginal ${out.originalDigest}\nChanged ${out.changedFiles.join(', ')}\nWrote ${out.file}`);
   }));
 
 program.command('verify')
@@ -154,15 +189,55 @@ program.command('verify')
     process.exitCode = result.ok ? 0 : 1;
   }));
 
+program.command('encrypt')
+  .description('write an envelope: the package encrypted with age v1 (moca-spec encrypted packages)')
+  .argument('<package>', 'package directory or .moca archive; it must be valid')
+  .requiredOption('-o, --out <file>', 'envelope to write, conventionally <name>.mocae')
+  .option('-r, --recipient <age1...>', 'an X25519 recipient; repeat for several', (v, a) => [...a, v], [])
+  .option('-R, --recipients-file <file>', 'a file of recipients, one per line; repeat for several', (v, a) => [...a, v], [])
+  .option('--passphrase-env <name>', 'encrypt to one passphrase read from this environment variable (never from the command line)')
+  .option('--work-factor <n>', `scrypt work factor for a passphrase, log2 N: ${MIN_WORK_FACTOR} to ${MAX_WORK_FACTOR} (Readers refuse over ${MAX_WORK_FACTOR})`, (v) => (/^[0-9]+$/.test(v) ? Number(v) : Number.NaN), 18)
+  .option('--outline <fields>', `manifest fields left readable, comma-separated (default ${DEFAULT_OUTLINE.join(',')})`)
+  .option('--no-outline', 'leave no manifest field readable')
+  .option('--structure', 'also leave structure.ttl readable (reveals the concept graph)', false)
+  .option('--cover', 'also leave the first cover image readable', false)
+  .option('--force', 'replace an existing output', false)
+  .action((pkg, opts) => run(async () => {
+    const recipients = [...opts.recipient, ...readRecipients(opts.recipientsFile)];
+    const passphrase = opts.passphraseEnv ? passphraseFromEnv(opts.passphraseEnv) : undefined;
+    const outline = opts.outline === false ? [] : typeof opts.outline === 'string' ? parseOutlineFields(opts.outline.split(',').map((s) => s.trim()).filter(Boolean)) : DEFAULT_OUTLINE;
+    const r = await encryptPackage({ pkg, out: opts.out, recipients, passphrase, workFactor: opts.workFactor, outline, structure: opts.structure, cover: opts.cover, force: opts.force });
+    for (const w of r.warnings) console.error(`moca-sign: warning: ${w}`);
+    console.log(`Wrote ${r.out}\n${r.digest}\noutline: ${r.outline ? JSON.stringify(r.outline) : 'none'}`);
+  }));
+
+program.command('decrypt')
+  .description('open an envelope as a Reader does, then WRITE THE PLAIN .moca TO DISK (a Producer tool; Readers never write plaintext)')
+  .argument('<envelope>', 'envelope (.mocae)')
+  .requiredOption('-o, --out <file>', 'the .moca archive to write')
+  .option('-i, --identity <file>', 'an age identity file (AGE-SECRET-KEY-1...); repeat for several', (v, a) => [...a, v], [])
+  .option('--passphrase-env <name>', 'read the passphrase from this environment variable')
+  .option('--force', 'replace an existing output', false)
+  .action((envelope, opts) => run(async () => {
+    const identities = opts.identity.length > 0 ? readIdentities(opts.identity) : undefined;
+    const passphrase = opts.passphraseEnv ? passphraseFromEnv(opts.passphraseEnv) : undefined;
+    const r = await decryptEnvelope({ envelope, out: opts.out, identities, passphrase, force: opts.force });
+    console.log(`Wrote ${r.out}\n${r.digest}${r.valid ? '' : '\n(the package inside is not valid; run moca-lint on it)'}`);
+  }));
+
+// Every failure exits non-zero with one clear line on stderr: 2 for what the user can fix (a refused input), 1 for
+// anything else. A build that signs must never carry on as if it had signed.
 async function run(fn) {
   try {
     await fn();
   } catch (err) {
-    if (err instanceof SignError || err instanceof TrustRootError) {
+    if (err instanceof SignError || err instanceof TrustRootError || err instanceof EncryptError || err instanceof IssueError) {
       console.error(`moca-sign: ${err.message}`);
       process.exit(2);
     }
-    throw err;
+    console.error(`moca-sign: failed: ${err?.message ?? err}`);
+    if (process.env.MOCA_SIGN_DEBUG) console.error(err?.stack);
+    process.exit(1);
   }
 }
 

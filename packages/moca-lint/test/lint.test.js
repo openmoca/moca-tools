@@ -85,3 +85,30 @@ test('acme-support marks its retired pages, so it has no retired-concept warning
   const r = await lintPackage({ target: join(repo, 'examples/acme-support') });
   assert.deepEqual(r.diagnostics.filter((d) => d.code === 'LINT_RETIRED_CONCEPT'), []);
 });
+
+test('pack warns when an encrypted-only package is packed plain, and refuses under --strict', async () => {
+  const fixture = join(repo, 'conformance/fixtures/distribution-encrypted-only');
+  const dir = mkdtempSync(join(tmpdir(), 'moca-lint-plain-'));
+  const packed = await packPackage({ dir: fixture, out: join(dir, 'a.moca') });
+  assert.equal(packed.written, true);
+  assert.deepEqual(packed.diagnostics.map((d) => [d.code, d.severity]), [['LINT_DISTRIBUTION_PACKED_PLAIN', 'warning']]);
+  const strict = await packPackage({ dir: fixture, out: join(dir, 'b.moca'), strict: true });
+  assert.equal(strict.written, false);
+  assert.equal(existsSync(join(dir, 'b.moca')), false);
+  const open = await packPackage({ dir: join(repo, 'conformance/fixtures/valid-minimal'), out: join(dir, 'c.moca') });
+  assert.deepEqual(open.diagnostics, []);
+});
+
+test('lint reads an envelope like a Reader: E001 without a key, the package inside with one', async () => {
+  const envelopes = join(repo, 'conformance/fixtures/envelopes');
+  const closed = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'x25519.mocae')], { encoding: 'utf8' });
+  assert.equal(closed.status, 1);
+  assert.match(closed.stdout, /E001_ENCRYPTED_NO_KEY/);
+  assert.match(closed.stderr, /--identity/);
+  const open = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'x25519.mocae'), '--identity', join(envelopes, 'keys/INSECURE-test.txt')], { encoding: 'utf8' });
+  assert.equal(open.status, 0, open.stdout);
+  const mismatch = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'outline-mismatch.mocae'), '--identity', join(envelopes, 'keys/INSECURE-test.txt')], { encoding: 'utf8' });
+  assert.match(mismatch.stdout, /E004_OUTLINE_MISMATCH/);
+  const marker = spawnSync(process.execPath, [bin, 'lint', join(envelopes, 'unknown-format.mocae')], { encoding: 'utf8' });
+  assert.match(marker.stdout, /E005_ENVELOPE_INVALID/);
+});

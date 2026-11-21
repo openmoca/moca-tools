@@ -4,6 +4,20 @@ import { Command } from 'commander';
 import { formatText, formatJson, formatSarif, readPackage, structureView } from '@openmoca/moca-core';
 import { lintPackage, packPackage, extractArchive, UsageError } from '../lib/index.js';
 
+/** Encrypted packages: the age decryptor and a key provider from --identity or --passphrase-env, loaded only when asked. */
+async function envelopeOptions(opts) {
+  if (!opts.identity?.length && !opts.passphraseEnv) return {};
+  const { ageDecryptor } = await import('@openmoca/moca-core/age');
+  if (opts.identity?.length) {
+    const identities = opts.identity.flatMap((f) => readFileSync(f, 'utf8').split('\n').map((l) => l.trim()).filter((l) => l.startsWith('AGE-SECRET-KEY-1')));
+    if (identities.length === 0) throw new UsageError(`no AGE-SECRET-KEY-1 identity in ${opts.identity.join(', ')}`);
+    return { decryptor: ageDecryptor, keyProvider: () => ({ identities }) };
+  }
+  const passphrase = process.env[opts.passphraseEnv];
+  if (!passphrase) throw new UsageError(`the environment variable ${opts.passphraseEnv} is not set`);
+  return { decryptor: ageDecryptor, keyProvider: () => ({ passphrase }) };
+}
+
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const program = new Command();
 program.name('moca-lint').description('Check MOCA packages exactly as the reference Reader reads them.').version(version);
@@ -11,7 +25,9 @@ program.name('moca-lint').description('Check MOCA packages exactly as the refere
 const common = (cmd) => cmd
   .option('--trust-root <file>', 'trust root used to verify attestations')
   .option('--members <dirs...>', 'directories to search for member packages')
-  .option('--strict', 'treat warnings as errors', false);
+  .option('--strict', 'treat warnings as errors', false)
+  .option('--identity <file>', 'open an envelope with this age identity file; repeat for several', (v, a) => [...a, v], [])
+  .option('--passphrase-env <name>', 'open an envelope with the passphrase in this environment variable');
 
 function render(items, format, extra) {
   if (format === 'json') return formatJson(items, extra);
@@ -22,16 +38,36 @@ function render(items, format, extra) {
 common(program.command('lint')
   .argument('<target>', 'package directory or .moca archive')
   .option('--sidecar <path>', 'also check a sidecar index against the package')
+  .option('--vocabulary <file>', 'report how tags and structure concepts match a SKOS vocabulary (Turtle, or a .moca with a structure.ttl)')
   .option('--format <fmt>', 'text | json | sarif', 'text')
   .option('--output <file>', 'write the report to a file'))
   .action((target, opts) => run(async () => {
-    const { result, diagnostics, ok } = await lintPackage({
+    const linted = await lintPackage({
       target, trustRoot: opts.trustRoot, memberDirs: opts.members, sidecar: opts.sidecar, strict: opts.strict,
+      envelope: await envelopeOptions(opts),
     });
+    const { result, diagnostics } = linted;
+    let { ok } = linted;
+    if (opts.vocabulary) {
+      // Loaded only when asked, so the Workers build never parses Turtle for this.
+      const { loadVocabulary, vocabularyDiagnostics } = await import('../lib/vocabulary.js');
+      let vocabulary;
+      try {
+        vocabulary = await loadVocabulary(opts.vocabulary);
+      } catch (err) {
+        throw new UsageError(`--vocabulary: ${err.message}`);
+      }
+      const found = vocabularyDiagnostics(result, vocabulary, opts.strict);
+      diagnostics.push(...found);
+      if (found.some((d) => d.severity === 'error')) ok = false;
+    }
     const extra = { package: result.manifest ? { id: result.manifest.id, version: result.manifest.version } : null, digest: result.digest, capabilities: result.capabilities };
     const report = render(diagnostics, opts.format, extra);
     if (opts.output) writeFileSync(opts.output, report);
     else console.log(report);
+    if (result.envelope && !result.envelope.opened && !opts.identity?.length && !opts.passphraseEnv) {
+      console.error('\nThis is an envelope. Pass --identity <file> or --passphrase-env <name> to open it.');
+    }
     if (opts.format === 'text' && !opts.output && result.valid) {
       console.log(`\n${result.digest}\ncapabilities: ${result.capabilities.join(', ')}`);
     }
@@ -82,14 +118,22 @@ program.command('info')
   .description('summarise a package: identity, capabilities, nodes, attestations')
   .argument('<target>', 'package directory or .moca archive')
   .option('--trust-root <file>', 'trust root used to verify attestations')
+  .option('--identity <file>', 'open an envelope with this age identity file; repeat for several', (v, a) => [...a, v], [])
+  .option('--passphrase-env <name>', 'open an envelope with the passphrase in this environment variable')
   .action((target, opts) => run(async () => {
-    const r = await readPackage(target, { trustRoot: opts.trustRoot });
+    const r = await readPackage(target, { trustRoot: opts.trustRoot, ...(await envelopeOptions(opts)) });
     console.log(JSON.stringify({
       id: r.manifest?.id,
       version: r.manifest?.version,
       digest: r.digest,
       valid: r.valid,
       capabilities: r.capabilities,
+      distribution: r.distribution,
+      ...(r.tags ? { tags: r.tags } : {}),
+      ...(r.apps ? { apps: r.apps } : {}),
+      ...(r.readingOrder ? { readingOrder: r.readingOrder } : {}),
+      ...(r.images ? { images: r.images } : {}),
+      ...(r.envelope ? { envelope: r.envelope } : {}),
       nodes: r.nodes.map((n) => ({ path: n.path, type: n.representations[0].frontmatter.type, locales: n.representations.map((x) => x.locale ?? 'default') })),
       members: r.members.map(({ id, version: v, digest, status }) => ({ id, version: v, digest, status })),
       attestations: r.attestations.map(({ file, role, outcome, signer }) => ({ file, role, outcome, signer })),
@@ -109,6 +153,8 @@ common(program.command('pack')
       process.exitCode = 1;
       return;
     }
+    const warnings = out.diagnostics.filter((d) => d.severity === 'warning');
+    if (warnings.length > 0) console.error(formatText(warnings));
     console.log(`Wrote ${opts.out}\n${out.result.digest}`);
   }));
 

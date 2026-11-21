@@ -1,6 +1,6 @@
 {
   "name": "@openmoca/moca-lint",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Check, pack and extract MOCA packages using the reference Reader.",
   "license": "Apache-2.0",
   "type": "module",
@@ -15,9 +15,10 @@
     "test:workers": "node --test workers/workers.test.mjs"
   },
   "dependencies": {
-    "@openmoca/moca-core": "^0.6.0",
+    "@openmoca/moca-core": "file:../../../moca-reader-typescript",
     "adm-zip": "^0.6.0",
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "n3": "^2.7.12"
   },
   "publishConfig": {
     "access": "public"

@@ -22,7 +22,9 @@ npx @openmoca/moca-embed models list
 Models go in a store folder: `~/.moca/models`, or `MOCA_MODELS`, or
 `--models <folder>`. `models add` is the only command that downloads: the
 files you name, from Hugging Face at a pinned commit, each checked against
-its pinned SHA-256 before it is installed.
+its pinned SHA-256 before it is installed. Each file is hashed as it
+arrives and limited to 512 MB, and a download stops if nothing arrives for 60
+seconds or a file takes over 30 minutes; nothing is installed after a failure.
 
 ## Search with a TypeScript Reader
 
@@ -31,7 +33,7 @@ import { Library, Search, LexicalBackend, DenseBackend, HybridBackend, readPacka
 import { standardEmbedder } from '@openmoca/moca-embed';
 
 const pkg = await readPackage('acme-support.moca', { trustRoot: 'trust-root.json' });
-const sidecar = bindSidecar('acme-support.moca.idx', pkg);
+const sidecar = bindSidecar('acme-support.mocai', pkg);
 const library = new Library().add(pkg, sidecar);
 
 // The same model the index was built with; its files are checked before loading.
@@ -40,7 +42,7 @@ const backend = new HybridBackend({ lexical: new LexicalBackend(library), dense:
 const results = await new Search(library, { backend, audiences: ['public'] }).search('money back after buying');
 ```
 
-Build the index with the same model: `npx @openmoca/moca-index build acme-support.moca -o acme-support.moca.idx --chunk headings --model bge-small-en-v1.5`.
+Build the index with the same model: `npx @openmoca/moca-index build acme-support.moca -o acme-support.mocai --chunk headings --model bge-small-en-v1.5`.
 
 ## How each model is run
 

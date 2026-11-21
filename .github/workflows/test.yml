@@ -18,25 +18,26 @@ permissions:
 # The other MOCA repositories, at fixed refs: release tags, or commits while a Spec Change
 # Proposal is in flight; never a branch (moca-spec CONTRIBUTING.md).
 env:
-  MOCA_SPEC_REF: v0.6.0
+  MOCA_SPEC_REF: af2310432b374c8e6882ed813effdf85a01d25f8  # release-0.7.0 (0.7.0 release candidate); v0.7.0 once tagged
+  MOCA_READER_TYPESCRIPT_REF: fba2d0de39378c57c2684906b61c7bd42e8d45e6  # release-0.7.0 (0.7.0 release candidate); v0.7.0 once tagged
 
 jobs:
   deps:
     name: Public dependencies only
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: moca-tools
       # The check lives in moca-spec, the one copy every open repository runs.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: ${{ github.repository_owner }}/moca-spec
           ref: ${{ env.MOCA_SPEC_REF }}
           path: moca-spec
           # Read access to the other MOCA repos while they are private.
           token: ${{ secrets.MOCA_REPOS_TOKEN || github.token }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       - run: node moca-spec/scripts/check-deps.mjs moca-tools
@@ -49,25 +50,45 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: moca-tools
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: ${{ github.repository_owner }}/moca-spec
           ref: ${{ env.MOCA_SPEC_REF }}
           path: moca-spec
           # Read access to the other MOCA repos while they are private.
           token: ${{ secrets.MOCA_REPOS_TOKEN || github.token }}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ${{ github.repository_owner }}/moca-reader-typescript
+          ref: ${{ env.MOCA_READER_TYPESCRIPT_REF }}
+          path: moca-reader-typescript
+          # Read access to the other MOCA repos while they are private.
+          token: ${{ secrets.MOCA_REPOS_TOKEN || github.token }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: '*/package-lock.json'
       - run: npm ci
+        working-directory: moca-reader-typescript
+      - run: npm ci
         working-directory: moca-tools
+      # The Go age CLI (pinned, checksum-checked) for the age cross-check. On Linux it is required, so the
+      # cross-check can never skip there (MOCA_REQUIRE_GO_AGE).
+      - name: Install the Go age CLI
+        if: runner.os == 'Linux'
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/age.tar.gz" https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz
+          echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  $RUNNER_TEMP/age.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/age.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/age" >> "$GITHUB_PATH"
       - run: npm test
         working-directory: moca-tools
+        env:
+          MOCA_REQUIRE_GO_AGE: ${{ runner.os == 'Linux' && '1' || '' }}
       # The lint Worker in workerd, Cloudflare's runtime. Linux only: one runtime check is enough.
       - run: npm run test:workers -w @openmoca/moca-lint
         if: runner.os == 'Linux'

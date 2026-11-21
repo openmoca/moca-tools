@@ -16,6 +16,40 @@ export const DEFAULT_LINT_LIMITS = Object.freeze({
   maxBytes: 64 * 1024 * 1024,
 });
 
+/**
+ * Checks one limit. A limit that is not given (undefined, null or an empty
+ * string) takes its default; anything else must be a positive whole number,
+ * given as a number or as a string of digits. A wrong value is refused, never
+ * read as "no limit".
+ *
+ * @param {string} name  the limit's name, for the error message
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+export function checkLimit(name, value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const n = typeof value === 'string' && /^[0-9]+$/.test(value.trim()) ? Number(value.trim()) : value;
+  if (typeof n !== 'number' || !Number.isSafeInteger(n) || n < 1) {
+    throw new RangeError(`${name} must be a positive whole number.`);
+  }
+  return n;
+}
+
+/**
+ * The limits to use: each one given, or its default. Throws for a value that
+ * is not a positive whole number.
+ *
+ * @param {{ maxBodyBytes?: unknown, maxEntries?: unknown, maxBytes?: unknown }} [limits]
+ */
+export function resolveLintLimits(limits = {}) {
+  return Object.freeze({
+    maxBodyBytes: checkLimit('maxBodyBytes', limits.maxBodyBytes, DEFAULT_LINT_LIMITS.maxBodyBytes),
+    maxEntries: checkLimit('maxEntries', limits.maxEntries, DEFAULT_LINT_LIMITS.maxEntries),
+    maxBytes: checkLimit('maxBytes', limits.maxBytes, DEFAULT_LINT_LIMITS.maxBytes),
+  });
+}
+
 /** What the result cannot say, given with every answer so nobody reads too much into it. */
 export const LINT_NOTES = Object.freeze([
   'Signatures and reviews are reported as unverifiable: this endpoint has no trust root for your package.',
@@ -75,8 +109,9 @@ export async function readLimited(request, maxBytes) {
  * @param {Uint8Array} bytes
  * @param {{ strict?: boolean, maxEntries?: number, maxBytes?: number }} [options]
  */
-export async function lintArchive(bytes, { strict = false, maxEntries = DEFAULT_LINT_LIMITS.maxEntries, maxBytes = DEFAULT_LINT_LIMITS.maxBytes } = {}) {
-  const limits = { maxEntries, maxBytes };
+export async function lintArchive(bytes, { strict = false, maxEntries, maxBytes } = {}) {
+  const resolved = resolveLintLimits({ maxEntries, maxBytes });
+  const limits = { maxEntries: resolved.maxEntries, maxBytes: resolved.maxBytes };
   let source;
   try {
     // The zip library inflates each entry only up to its declared size, and the
@@ -101,15 +136,17 @@ export async function lintArchive(bytes, { strict = false, maxEntries = DEFAULT_
 /**
  * @param {object} [p]
  * @param {string} [p.path]  where the endpoint answers (default /lint)
- * @param {number} [p.maxBodyBytes]
- * @param {number} [p.maxEntries]
- * @param {number} [p.maxBytes]  the most an archive may expand to
+ * @param {number|string} [p.maxBodyBytes]
+ * @param {number|string} [p.maxEntries]
+ * @param {number|string} [p.maxBytes]  the most an archive may expand to
+ *   Each limit not given takes its default (DEFAULT_LINT_LIMITS). A value that
+ *   is not a positive whole number throws a RangeError here, at set-up.
  * @param {(request: Request) => boolean | Promise<boolean>} [p.allow]
  *   the host's rate limit: false refuses the request with 429. Called before the body is read
  * @returns {(request: Request) => Promise<Response>}
  */
-export function createLintHandler({ path = '/lint', allow, ...limits } = {}) {
-  const { maxBodyBytes, maxEntries, maxBytes } = { ...DEFAULT_LINT_LIMITS, ...limits };
+export function createLintHandler({ path = '/lint', allow, maxBodyBytes: body, maxEntries: entries, maxBytes: expanded } = {}) {
+  const { maxBodyBytes, maxEntries, maxBytes } = resolveLintLimits({ maxBodyBytes: body, maxEntries: entries, maxBytes: expanded });
 
   return async (request) => {
     const url = new URL(request.url);

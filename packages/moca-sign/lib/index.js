@@ -1,8 +1,8 @@
 // @openmoca/moca-sign: writes package and review attestations
 // (spec/moca-attestations.md) and verifies them through @openmoca/moca-core.
 import { generateKeyPairSync } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { slug, checkStem, writeAttestation } from './files.js';
 import { ROLES } from './trust.js';
 import {
   readPackage, createEnvelope, packageStatement, reviewStatement, PAYLOAD_TYPE, CONTENT_DIR_PREFIX,
@@ -11,9 +11,10 @@ import {
 export class SignError extends Error {}
 
 export {
-  readTrustRoot, writeTrustRoot, addKey, addSigstoreIdentity, removeEntry, describeTrustRoot, checkPublicKey,
-  parseRoles, parseExpires, TrustRootError, ROLES,
+  readTrustRoot, writeTrustRoot, checkTrustRoot, addKey, addSigstoreIdentity, removeEntry, describeTrustRoot, checkPublicKey,
+  parseRoles, parseIds, parseExpires, TrustRootError, ROLES, ALL_ROLES,
 } from './trust.js';
+export { issueCopy, compareCopy, IssueError } from './issue.js';
 
 /** @returns {{ privateKeyPem: string, publicKeyPem: string }} */
 export function generateKeyPair() {
@@ -28,8 +29,6 @@ export function generateKeyPair() {
 export function trustRootFor({ keyid, publicKeyPem, identity, roles }) {
   return { keys: [{ keyid, publicKey: publicKeyPem, identity: identity ?? keyid, roles: roles ?? [...ROLES] }] };
 }
-
-const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'x';
 
 async function readValid(dir) {
   const pkg = await readPackage(dir);
@@ -47,11 +46,6 @@ function statementBytes(statement) {
 async function sigstoreBundle(statement, signOptions) {
   const { attest } = await import('sigstore');
   return attest(statementBytes(statement), PAYLOAD_TYPE, signOptions);
-}
-
-function writeJson(path, value) {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 /**
@@ -77,7 +71,7 @@ export async function signPackage({ dir, privateKeyPem, keyid, sigstore = false,
     file = join('attestations', `package.${slug(keyid)}.dsse.json`);
     value = createEnvelope({ payload: statementBytes(statement), payloadType: PAYLOAD_TYPE, privateKeyPem, keyid });
   }
-  writeJson(join(dir, file), value);
+  writeAttestation(dir, file, value, { keyid: sigstore ? undefined : keyid, fail: (m) => new SignError(m) });
   return { file: file.split('\\').join('/'), digest: pkg.digest };
 }
 
@@ -92,7 +86,7 @@ export async function signPackage({ dir, privateKeyPem, keyid, sigstore = false,
  * @param {string} [p.reviewedAt]  ISO 8601; defaults to now
  * @param {string} [p.scope]
  * @param {string} [p.note]
- * @param {string} [p.name]  file name stem; defaults to reviewer and date
+ * @param {string} [p.name]  file name stem: letters, digits, `.`, `_`, `-`; defaults to reviewer and date
  * @param {string} [p.privateKeyPem]
  * @param {string} [p.keyid]
  * @param {boolean} [p.sigstore]
@@ -102,6 +96,7 @@ export async function reviewNodes({
   dir, nodes, reviewer, outcome, reviewedAt, scope, note, name, privateKeyPem, keyid, sigstore = false, signOptions = {},
 }) {
   if (!nodes?.length) throw new SignError('name at least one node to review');
+  if (name !== undefined) checkStem(name, (m) => new SignError(`--name: ${m}`));
   const pkg = await readValid(dir);
   const files = nodes.map((n) => {
     const path = (n.startsWith(CONTENT_DIR_PREFIX) ? n : `${CONTENT_DIR_PREFIX}${n}`).normalize('NFC');
@@ -122,7 +117,7 @@ export async function reviewNodes({
     file = join('attestations', 'reviews', `${stem}.dsse.json`);
     value = createEnvelope({ payload: statementBytes(statement), payloadType: PAYLOAD_TYPE, privateKeyPem, keyid });
   }
-  writeJson(join(dir, file), value);
+  writeAttestation(dir, file, value, { keyid: sigstore ? undefined : keyid, fail: (m) => new SignError(m) });
   return { file: file.split('\\').join('/'), files };
 }
 
@@ -137,3 +132,8 @@ export async function verifyPackage({ dir, trustRoot, online = false, allowOffli
     && pkg.signers.length > 0;
   return { ok, attestations, diagnostics: pkg.diagnostics, digest: pkg.digest, signers: pkg.signers };
 }
+export { ageEncrypt, decodeRecipient, checkWorkFactor, MIN_WORK_FACTOR, MAX_WORK_FACTOR, EncryptError } from './age-encrypt.js';
+export { checkStem } from './files.js';
+export {
+  encryptPackage, decryptEnvelope, readIdentities, readRecipients, passphraseFromEnv, parseOutlineFields, OUTLINE_FIELDS, DEFAULT_OUTLINE,
+} from './envelope.js';

@@ -5,6 +5,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { isPrimeOrderPoint, validateAgainst } from './deps.js';
 
 export const ROLES = Object.freeze(['package', 'review']);
+/** Every role a trust root may give (attestations §6). `issued-copy` is never a default: it is granted on purpose. */
+export const ALL_ROLES = Object.freeze(['package', 'review', 'issued-copy']);
 
 export class TrustRootError extends Error {}
 
@@ -27,6 +29,11 @@ export function writeTrustRoot(path, doc) {
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
 }
 
+/** Throws TrustRootError unless `doc` is a valid trust root. `path` names it in the message. */
+export function checkTrustRoot(doc, path) {
+  check(doc, path);
+}
+
 function check(doc, path) {
   const errors = validateAgainst('trustRoot', doc);
   if (errors.length > 0) throw new TrustRootError(`${path} is not a valid trust root: ${errors.join('; ')}`);
@@ -39,11 +46,23 @@ function check(doc, path) {
 export function parseRoles(text) {
   if (text === undefined) return [...ROLES];
   const roles = [...new Set(text.split(',').map((r) => r.trim()).filter(Boolean))];
-  const unknown = roles.filter((r) => !ROLES.includes(r));
+  const unknown = roles.filter((r) => !ALL_ROLES.includes(r));
   if (roles.length === 0 || unknown.length > 0) {
-    throw new TrustRootError(`roles must be package, review or both, comma-separated; got "${text}"`);
+    throw new TrustRootError(`roles must be package, review or issued-copy, comma-separated; got "${text}"`);
   }
   return roles;
+}
+
+/**
+ * Splits "https://example.com/a/,https://example.com/b" into ids. Attestations §6: the issued-copy role needs ids,
+ * the packages whose copies the entry may issue.
+ */
+export function parseIds(text, roles) {
+  const ids = text === undefined ? undefined : [...new Set(text.split(',').map((r) => r.trim()).filter(Boolean))];
+  if ((roles ?? ROLES).includes('issued-copy') && !ids?.length) {
+    throw new TrustRootError('the issued-copy role needs --ids: the package ids (or prefixes ending in /, : or #) whose copies it may issue');
+  }
+  return ids;
 }
 
 /** Normalises an expiry date to an ISO 8601 date-time, refusing anything Date cannot read. */
@@ -84,7 +103,7 @@ export function checkPublicKey(pem) {
  * Adds a key, or replaces the one with the same keyid.
  * @returns {{ doc: object, replaced: boolean }}
  */
-export function addKey(doc, { keyid, publicKey, identity, roles, expires }) {
+export function addKey(doc, { keyid, publicKey, identity, roles, expires, ids }) {
   if (!keyid) throw new TrustRootError('a key needs a key id');
   const entry = {
     keyid,
@@ -92,6 +111,7 @@ export function addKey(doc, { keyid, publicKey, identity, roles, expires }) {
     identity: identity ?? keyid,
     ...(expires ? { expires } : {}),
     roles: roles ?? [...ROLES],
+    ...(ids?.length ? { ids } : {}),
   };
   const keys = doc.keys ?? [];
   const replaced = keys.some((k) => k.keyid === keyid);
@@ -102,13 +122,13 @@ export function addKey(doc, { keyid, publicKey, identity, roles, expires }) {
  * Adds a Sigstore identity, or replaces the one with the same issuer and subject.
  * @returns {{ doc: object, replaced: boolean }}
  */
-export function addSigstoreIdentity(doc, { issuer, subject, roles }) {
+export function addSigstoreIdentity(doc, { issuer, subject, roles, ids }) {
   if (!issuer || !subject) throw new TrustRootError('a Sigstore identity needs an issuer and a subject');
   if (!/^https:\/\//.test(issuer)) throw new TrustRootError(`the issuer is the OIDC issuer's https:// address; got "${issuer}"`);
   const same = (i) => i.issuer === issuer && i.subject === subject;
   const identities = doc.sigstore?.identities ?? [];
   const replaced = identities.some(same);
-  const entry = { issuer, subject, roles: roles ?? [...ROLES] };
+  const entry = { issuer, subject, roles: roles ?? [...ROLES], ...(ids?.length ? { ids } : {}) };
   return { doc: { ...doc, sigstore: { ...doc.sigstore, identities: [...identities.filter((i) => !same(i)), entry] } }, replaced };
 }
 

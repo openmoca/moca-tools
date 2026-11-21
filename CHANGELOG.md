@@ -2,6 +2,115 @@
 
 All notable changes to `@openmoca/moca-lint`, `@openmoca/moca-index`, `@openmoca/moca-sign`. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.0] - 2026-11-15
+
+For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/5) and
+[moca-spec#7](https://github.com/openmoca/moca-spec/issues/7) and
+[moca-spec#8](https://github.com/openmoca/moca-spec/issues/8) and
+[moca-spec#9](https://github.com/openmoca/moca-spec/issues/9)).
+
+### Changed (hardening)
+
+- `moca-lint` over HTTP: every limit is checked. A limit left unset takes its
+  default; a value that is not a positive whole number is refused when the
+  handler is made. The Workers target sets the default limits and a rate limit
+  (10 requests a minute per client address) in `wrangler.toml`, and answers
+  500 (`misconfigured`) while a limit is wrong.
+- `moca-sign review --name` takes a plain file name stem only.
+- `moca-sign`: a DSSE attestation signed with one key id is never replaced by
+  one signed with another key id that gives the same file name. Attestations
+  are written through a temporary file.
+- `moca-sign keygen` checks the key id, never replaces a key, writes the
+  private key readable by its owner only, and checks the trust root before
+  writing anything.
+- `moca-sign encrypt`: the scrypt work factor is 15 to 20. The envelope is
+  checked before it is moved into place; nothing is left when the check fails.
+- `moca-sign issue` requires the original to carry a publisher signature for
+  its digest; `--trust-root` also requires it to verify.
+- `moca-sign` and `moca-index`: every failure exits non-zero with one line on
+  stderr.
+- `moca-index build -o` stages the sidecar beside its final place and checks
+  it before moving it in. `--force` replaces only a previous sidecar.
+  `--envelope` writes the new envelope beside the old one and renames it, and
+  checks the package inside when a passphrase is given.
+- `moca-embed models add`: each file is limited to 512 MB, hashed as it
+  arrives, and stopped after 60 seconds with nothing received or 30 minutes in
+  all.
+- CI runs against moca-spec and moca-reader-typescript at their
+  `release-0.7.0` heads.
+
+### Changed (age hardening in the Reader)
+
+- `moca-sign decrypt` awaits the Reader's age decryptor, whose `decrypt` is
+  now asynchronous.
+- CI installs the Go age CLI (pinned, checksum-checked) and requires it on
+  Linux, so the age cross-check never skips there.
+
+### Added (moca-sign, moca-lint: issued copies)
+
+- `moca-sign issue <copy> --original <dir>`: compares a marked copy with the
+  publisher's package, checks the rules for issued copies and the
+  publisher's `issuedCopies`, and writes an issued-copy attestation
+  (moca-spec attestations §3a). It copies the publisher's attestations into
+  the copy when they are missing. It never marks anything.
+- `moca-sign trust add --roles issued-copy --ids <ids>`: the new trust-root
+  role, never a default, with the `ids` it requires.
+- `moca-lint lint`: `LINT_ISSUED_COPIES_OPEN` (info) when `issuedCopies`
+  allows issued copies but `distribution` is `open`.
+
+### Added (moca-lint: the reading order)
+
+- `moca-lint info` shows `readingOrder` when it resolves. `lint` reports
+  `M014_READING_ORDER_UNRESOLVED` from the Reader like any other code.
+
+### Added (moca-sign, moca-lint: the apps hint)
+
+- `moca-sign encrypt`: `apps` may be an outline field.
+- `moca-lint info` shows `tags`, `apps` and `images` when the package has
+  them.
+
+### Added (moca-lint, moca-sign: images, translations and tags)
+
+- `moca-lint lint` reads each image's pixel size from its header only (PNG
+  `IHDR`, the JPEG start-of-frame marker, WebP `VP8`, `VP8L` or `VP8X`) and
+  warns `LINT_IMAGE_SIZES_MISMATCH`, `LINT_ICON_NOT_SQUARE`,
+  `LINT_COVER_SHAPE` (not 16:9 within 1%), `LINT_IMAGE_TOO_SMALL` (a cover
+  under 960×540, an icon under 256×256) and `LINT_IMAGE_ALT_MISSING`, and
+  reports `LINT_TRANSLATION_MISSING` (info) for a declared locale with no
+  translation. Warnings are errors with `--strict`.
+- `moca-lint lint --vocabulary <file>`: a SKOS concept scheme in Turtle, or a
+  `.moca` whose `structure.ttl` holds one. Each package tag, page tag and
+  structure concept is reported as `LINT_VOCABULARY_MATCH` (info) or
+  `LINT_VOCABULARY_UNMATCHED` (info for a tag, warning for a concept) with
+  the nearest label. No vocabulary ships with the tool. moca-lint now
+  depends on `n3`, loaded only for this option.
+- `moca-sign encrypt`: `translations` and `tags` may be outline fields;
+  `--cover` leaves a copy of the first cover image readable, with a warning.
+
+### Added (moca-lint, package spec §4.1)
+
+- `pack` warns `LINT_DISTRIBUTION_PACKED_PLAIN` (an error with `--strict`)
+  when the manifest's `distribution` is `encrypted-only`. `info` shows
+  `distribution`.
+
+### Added (moca-sign, moca-index, moca-lint: encrypted packages)
+
+- `moca-sign encrypt`: envelopes with age v1 to X25519 recipients or one
+  passphrase (from an environment variable only); the outline fields by
+  choice, default `id,version,title`; `--structure` opt-in with a warning.
+  The age encryptor is on `node:crypto`; its output is checked by the Go age
+  CLI in the tests.
+- `moca-sign decrypt`: opens an envelope with every Reader check, then
+  writes the plain `.moca`.
+- `moca-index build --envelope`: adds `index.age` for the same recipients.
+- `moca-lint lint` and `info`: `--identity` and `--passphrase-env` open an
+  envelope; without them an envelope reports `E001`, with a hint.
+
+### Changed
+
+- While the proposal is open, the packages depend on the sibling
+  moca-reader-typescript (`file:`), and CI checks it out at a pinned ref.
+
 ## [0.6.0] - 2026-11-11
 
 ### Changed (moca-sign trust add)

@@ -1,6 +1,6 @@
 {
   "name": "@openmoca/moca-sign",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Write and verify MOCA package and review attestations (DSSE or Sigstore).",
   "license": "Apache-2.0",
   "type": "module",
@@ -14,7 +14,8 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@openmoca/moca-core": "^0.6.0",
+    "@openmoca/moca-core": "file:../../../moca-reader-typescript",
+    "adm-zip": "^0.6.0",
     "commander": "^12.1.0",
     "sigstore": "^5.0.0"
   },

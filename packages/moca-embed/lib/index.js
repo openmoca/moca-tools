@@ -7,11 +7,9 @@
 // never downloads: a missing or changed file is an error. addModel() downloads, and only when asked
 // (`moca-embed models add`, or `moca-mcp models add`).
 import { createHash } from 'node:crypto';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, openSync, closeSync, writeSync, renameSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 
 const ONNX = 'onnx/model_quantized.onnx';
 
@@ -153,24 +151,85 @@ export function installedModels(store = defaultModelStore()) {
   return STANDARD_MODELS.filter((m) => Object.keys(m.files).every((f) => existsSync(join(store, m.id, f))));
 }
 
+/** Limits on a model download: the largest standard model file is under 150 MB. */
+export const DOWNLOAD_LIMITS = Object.freeze({
+  /** The most bytes one file may have. */
+  maxFileBytes: 512 * 1024 * 1024,
+  /** How long a download may go without receiving a byte. */
+  idleMs: 60_000,
+  /** How long one file may take in all. */
+  totalMs: 30 * 60_000,
+});
+
+/**
+ * Downloads one file to `path`, hashing as it goes, within the limits. Returns the SHA-256 in hex.
+ * Throws when the server says or sends more than maxFileBytes, or is idle or slow past the limits.
+ */
+async function download(url, path, label, { fetch: get = fetch, maxFileBytes, idleMs, totalMs }) {
+  const controller = new AbortController();
+  let reason = '';
+  const stop = (why) => {
+    reason = why;
+    controller.abort();
+  };
+  const total = setTimeout(() => stop(`took longer than ${totalMs / 1000} s`), totalMs);
+  let idle = setTimeout(() => stop(`received nothing for ${idleMs / 1000} s`), idleMs);
+  const fd = openSync(path, 'wx');
+  try {
+    const res = await get(url, { headers: { 'user-agent': 'moca-embed' }, redirect: 'follow', signal: controller.signal });
+    if (!res.ok || !res.body) throw new Error(`${label}: HTTP ${res.status}`);
+    const declared = Number(res.headers?.get?.('content-length'));
+    if (Number.isFinite(declared) && declared > maxFileBytes) throw new Error(`${label} is ${declared} bytes, over the ${maxFileBytes}-byte limit`);
+    const hash = createHash('sha256');
+    let bytes = 0;
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      clearTimeout(idle);
+      idle = setTimeout(() => stop(`received nothing for ${idleMs / 1000} s`), idleMs);
+      bytes += value.byteLength;
+      if (bytes > maxFileBytes) {
+        await reader.cancel().catch(() => {});
+        throw new Error(`${label} is over the ${maxFileBytes}-byte limit`);
+      }
+      hash.update(value);
+      writeSync(fd, value);
+    }
+    return hash.digest('hex');
+  } catch (err) {
+    if (controller.signal.aborted) throw new Error(`${label}: the download ${reason}`);
+    throw err;
+  } finally {
+    clearTimeout(total);
+    clearTimeout(idle);
+    closeSync(fd);
+  }
+}
+
 /**
  * Downloads a standard model's files from Hugging Face at its pinned commit into a store, checking each SHA-256
- * before anything is installed; a file that does not match is discarded with the rest.
+ * before anything is installed; a file that does not match is discarded with the rest. Each file is limited in size
+ * and in time (DOWNLOAD_LIMITS), and hashed as it arrives.
+ * @param {string} idOrName
+ * @param {string} [store]
+ * @param {(message: string) => void} [progress]
+ * @param {{ fetch?: typeof fetch, maxFileBytes?: number, idleMs?: number, totalMs?: number }} [options]
  */
-export async function addModel(idOrName, store = defaultModelStore(), progress = () => {}) {
+export async function addModel(idOrName, store = defaultModelStore(), progress = () => {}, options = {}) {
   const model = findStandardModel(idOrName);
   if (!model) throw new Error(`not a standard model: ${idOrName} (${STANDARD_MODELS.map((m) => m.id).join(', ')})`);
+  const limits = { ...DOWNLOAD_LIMITS, ...options };
   const staging = join(store, `.${model.id}.partial`);
   rmSync(staging, { recursive: true, force: true });
   try {
     for (const [file, expected] of Object.entries(model.files)) {
       progress(`downloading ${model.id}/${file}`);
-      const res = await fetch(`https://huggingface.co/${model.repository}/resolve/${model.commit}/${file}`, { headers: { 'user-agent': 'moca-embed' } });
-      if (!res.ok || !res.body) throw new Error(`${model.id}: ${file}: HTTP ${res.status}`);
       const path = join(staging, file);
       mkdirSync(dirname(path), { recursive: true });
-      await pipeline(Readable.fromWeb(res.body), createWriteStream(path));
-      if ((await sha256(path)) !== expected) throw new Error(`${model.id}: ${file} from Hugging Face does not match its pinned SHA-256; nothing was installed`);
+      const url = `https://huggingface.co/${model.repository}/resolve/${model.commit}/${file}`;
+      const got = await download(url, path, `${model.id}: ${file}`, limits);
+      if (got !== expected) throw new Error(`${model.id}: ${file} from Hugging Face does not match its pinned SHA-256; nothing was installed`);
     }
     rmSync(join(store, model.id), { recursive: true, force: true });
     renameSync(staging, join(store, model.id));
