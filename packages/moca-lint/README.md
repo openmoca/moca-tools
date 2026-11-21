@@ -107,6 +107,9 @@ curl --data-binary @support-kb.moca 'https://<your host>/lint?format=sarif&stric
   each entry only up to its declared size, and the Reader caps the declared
   total, so an archive cannot expand past the limit. An archive whose sizes lie
   is `P002_UNREADABLE_ENTRY`.
+  A limit you leave out takes its default. A limit that is not a positive whole
+  number throws a `RangeError` when the handler is made: a wrong value never
+  turns a limit off.
 - **Nothing is kept.** The archive is read in memory and dropped. It is never
   stored, logged or sent anywhere.
 - Errors are short JSON with a stable code: `not_found`, `method_not_allowed`,
@@ -115,7 +118,9 @@ curl --data-binary @support-kb.moca 'https://<your host>/lint?format=sarif&stric
 
 ### Run your own on Cloudflare Workers
 
-`workers/` is a generic target. It names no account, route or limit.
+`workers/` is a generic target. It names no account or route. Its
+`wrangler.toml` sets the default limits explicitly and a rate limit of 10
+requests a minute per client address.
 
 ```sh
 npm ci
@@ -123,7 +128,9 @@ npx wrangler dev -c packages/moca-lint/workers/wrangler.toml      # http://local
 npx wrangler deploy -c packages/moca-lint/workers/wrangler.toml   # to your own account
 ```
 
-Set limits and a rate limit in your copy of `workers/wrangler.toml`. Linting a
+Change the limits and the rate limit in your copy of `workers/wrangler.toml`.
+A limit that is not a positive whole number makes every request answer 500
+(`misconfigured`) until it is fixed. Linting a
 large package takes more CPU than the Workers Free plan's 10 ms a request: a
 1,655-file package (4 MB zipped) took about 190 ms on a laptop.
 

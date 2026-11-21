@@ -40,3 +40,9 @@ test('reports a broken package in workerd', async () => {
   assert.equal(body.ok, false);
   assert.ok(body.diagnostics.some((d) => d.code === 'T002_MANIFEST_NOT_FOUND'));
 });
+
+test('an 11 MB body is refused with 413 in workerd', async () => {
+  const response = await worker.fetch('/lint', { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: new Uint8Array(11 * 1024 * 1024) });
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).error.code, 'body_too_large');
+});
