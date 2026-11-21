@@ -1,6 +1,7 @@
-# A generic, unconfigured Cloudflare Workers target for moca-lint: POST a .moca
-# archive to /lint. Run your own: see ../README.md, "Run it on Cloudflare
-# Workers". Nothing here names an account, a route or a limit.
+# A generic Cloudflare Workers target for moca-lint: POST a .moca archive to
+# /lint. Run your own: see ../README.md, "Run your own on Cloudflare Workers".
+# Nothing here names an account or a route. The limits below are moca-lint's
+# defaults, set explicitly; change them in your copy.
 name = "moca-lint"
 main = "worker.js"
 compatibility_date = "2026-10-01"
@@ -8,15 +9,17 @@ compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-# Limits for an upload, in bytes and entries. Empty: moca-lint's defaults
-# (10 MB body, 5,000 entries, 64 MB expanded).
-# MOCA_LINT_MAX_BODY_BYTES = "10485760"
-# MOCA_LINT_MAX_ENTRIES = "5000"
-# MOCA_LINT_MAX_BYTES = "67108864"
+# Limits for an upload, in bytes and entries. Each must be a positive whole
+# number; a value that is not is refused (every request answers 500), never
+# read as "no limit". Removing a line gives moca-lint's default.
+MOCA_LINT_MAX_BODY_BYTES = "10485760"
+MOCA_LINT_MAX_ENTRIES = "5000"
+MOCA_LINT_MAX_BYTES = "67108864"
 
-# Optional: a rate limit per client address, with Cloudflare's rate limiting
-# binding. Uncomment and set your own namespace_id and limits.
-# [[ratelimits]]
-# name = "RATE_LIMITER"
-# namespace_id = "1002"
-# simple = { limit = 10, period = 60 }
+# A rate limit per client address, with Cloudflare's rate limiting binding:
+# 10 requests a minute. namespace_id is any whole number you choose, unique in
+# your account.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1002"
+simple = { limit = 10, period = 60 }

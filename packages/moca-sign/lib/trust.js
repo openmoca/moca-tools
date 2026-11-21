@@ -29,6 +29,11 @@ export function writeTrustRoot(path, doc) {
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
 }
 
+/** Throws TrustRootError unless `doc` is a valid trust root. `path` names it in the message. */
+export function checkTrustRoot(doc, path) {
+  check(doc, path);
+}
+
 function check(doc, path) {
   const errors = validateAgainst('trustRoot', doc);
   if (errors.length > 0) throw new TrustRootError(`${path} is not a valid trust root: ${errors.join('; ')}`);

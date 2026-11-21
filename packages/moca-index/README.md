@@ -13,7 +13,15 @@ With `--envelope`, the index is built from the plain package and added to
 that package's envelope as `index.age`, encrypted to the recipients you pass
 (the same as the envelope's: only you know them). Nothing plain is written to
 disk. A Reader opens it through the same key provider
-(moca-spec encrypted packages §6).
+(moca-spec encrypted packages §6). The new envelope is written beside the old
+one and renamed over it. When the outline names an `id` and `version`, they
+must be the package's; with `--passphrase-env`, the envelope is opened and must
+hold this exact package. With recipients and no outline, moca-index cannot
+check, and warns.
+
+`-o` writes the sidecar beside its final place, checks it against the package,
+and only then moves it in. `--force` replaces only a previous sidecar (a
+folder or archive with `index.json`); it refuses anything else.
 
 - `--chunk node` indexes each node representation whole; `--chunk headings`
   splits at level 1-3 headings. Every chunk records UTF-8 byte offsets into its

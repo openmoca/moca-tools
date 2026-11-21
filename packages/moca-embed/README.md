@@ -22,7 +22,9 @@ npx @openmoca/moca-embed models list
 Models go in a store folder: `~/.moca/models`, or `MOCA_MODELS`, or
 `--models <folder>`. `models add` is the only command that downloads: the
 files you name, from Hugging Face at a pinned commit, each checked against
-its pinned SHA-256 before it is installed.
+its pinned SHA-256 before it is installed. Each file is hashed as it
+arrives and limited to 512 MB, and a download stops if nothing arrives for 60
+seconds or a file takes over 30 minutes; nothing is installed after a failure.
 
 ## Search with a TypeScript Reader
 

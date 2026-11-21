@@ -52,6 +52,7 @@ program.command('build')
         pkg, envelope: opts.envelope, recipients, passphrase, workFactor: opts.workFactor,
         chunker: opts.chunk, maxChars: opts.maxChars, overlap: opts.overlap, force: opts.force, embedder,
       });
+      for (const w of r.warnings) console.error(`moca-index: warning: ${w}`);
       console.log(`Added index.age to ${r.envelope} (${r.items} item(s)) bound to ${r.digest}`);
       return;
     }
@@ -85,7 +86,9 @@ async function run(fn) {
       console.error(`moca-index: ${err.message}`);
       process.exit(2);
     }
-    throw err;
+    console.error(`moca-index: failed: ${err?.message ?? err}`);
+    if (process.env.MOCA_INDEX_DEBUG) console.error(err?.stack);
+    process.exit(1);
   }
 }
 

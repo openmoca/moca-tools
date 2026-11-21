@@ -9,6 +9,36 @@ For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/
 [moca-spec#8](https://github.com/openmoca/moca-spec/issues/8) and
 [moca-spec#9](https://github.com/openmoca/moca-spec/issues/9)).
 
+### Changed (hardening)
+
+- `moca-lint` over HTTP: every limit is checked. A limit left unset takes its
+  default; a value that is not a positive whole number is refused when the
+  handler is made. The Workers target sets the default limits and a rate limit
+  (10 requests a minute per client address) in `wrangler.toml`, and answers
+  500 (`misconfigured`) while a limit is wrong.
+- `moca-sign review --name` takes a plain file name stem only.
+- `moca-sign`: a DSSE attestation signed with one key id is never replaced by
+  one signed with another key id that gives the same file name. Attestations
+  are written through a temporary file.
+- `moca-sign keygen` checks the key id, never replaces a key, writes the
+  private key readable by its owner only, and checks the trust root before
+  writing anything.
+- `moca-sign encrypt`: the scrypt work factor is 15 to 20. The envelope is
+  checked before it is moved into place; nothing is left when the check fails.
+- `moca-sign issue` requires the original to carry a publisher signature for
+  its digest; `--trust-root` also requires it to verify.
+- `moca-sign` and `moca-index`: every failure exits non-zero with one line on
+  stderr.
+- `moca-index build -o` stages the sidecar beside its final place and checks
+  it before moving it in. `--force` replaces only a previous sidecar.
+  `--envelope` writes the new envelope beside the old one and renames it, and
+  checks the package inside when a passphrase is given.
+- `moca-embed models add`: each file is limited to 512 MB, hashed as it
+  arrives, and stopped after 60 seconds with nothing received or 30 minutes in
+  all.
+- CI runs against moca-spec and moca-reader-typescript at their
+  `release-0.7.0` heads.
+
 ### Changed (age hardening in the Reader)
 
 - `moca-sign decrypt` awaits the Reader's age decryptor, whose `decrypt` is

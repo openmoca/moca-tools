@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import AdmZip from 'adm-zip';
 import { openSource } from '@openmoca/moca-core';
-import { createLintHandler, lintArchive, LINT_NOTES } from '../lib/http.js';
+import { createLintHandler, lintArchive, resolveLintLimits, DEFAULT_LINT_LIMITS, LINT_NOTES } from '../lib/http.js';
 
 const repo = process.env.MOCA_SPEC_DIR ?? fileURLToPath(new URL('../../../../moca-spec/', import.meta.url));
 const BASE = 'https://tools.example/lint';
@@ -114,4 +114,41 @@ test('an archive whose sizes lie is reported, not a server error', async () => {
   const body = await response.json();
   assert.equal(body.ok, false);
   assert.ok(body.diagnostics.some((d) => d.code === 'P002_UNREADABLE_ENTRY'));
+});
+
+test('an 11 MB body is refused with 413 under the default limit, declared or streamed', async () => {
+  const handler = createLintHandler();
+  const big = new Uint8Array(11 * 1024 * 1024);
+  const declared = await handler(post(big));
+  assert.equal(declared.status, 413);
+  assert.equal((await declared.json()).error.code, 'body_too_large');
+  // No Content-Length: the body is counted as it arrives.
+  const chunk = new Uint8Array(1024 * 1024);
+  let sent = 0;
+  const stream = new ReadableStream({
+    pull(controller) {
+      if (sent++ < 11) controller.enqueue(chunk);
+      else controller.close();
+    },
+  });
+  const streamed = await handler(new Request(BASE, { method: 'POST', body: stream, duplex: 'half' }));
+  assert.equal(streamed.status, 413);
+});
+
+test('an unset limit takes its default, and never switches the limit off', async () => {
+  assert.deepEqual({ ...resolveLintLimits({ maxBodyBytes: undefined, maxEntries: null, maxBytes: '' }) }, { ...DEFAULT_LINT_LIMITS });
+  const handler = createLintHandler({ maxBodyBytes: undefined, maxEntries: undefined, maxBytes: undefined });
+  assert.equal((await handler(post(new Uint8Array(11 * 1024 * 1024)))).status, 413);
+});
+
+test('a limit given as a string of digits is read as a number', () => {
+  assert.equal(resolveLintLimits({ maxBodyBytes: '2048' }).maxBodyBytes, 2048);
+});
+
+test('a limit that is not a positive whole number is refused at set-up', () => {
+  for (const bad of ['abc', '10MB', '-1', '0', '1.5', 0, -5, 1.5, Number.NaN, Number.POSITIVE_INFINITY, true, {}]) {
+    assert.throws(() => createLintHandler({ maxBodyBytes: bad }), RangeError, `maxBodyBytes ${String(bad)}`);
+    assert.throws(() => createLintHandler({ maxEntries: bad }), RangeError);
+    assert.throws(() => createLintHandler({ maxBytes: bad }), RangeError);
+  }
 });
