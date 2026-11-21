@@ -36,7 +36,7 @@ test('the Go age CLI decrypts what ageEncrypt writes, for every chunk boundary',
     // And the Reader's own decryptor agrees.
     assert.ok(Buffer.from(await ageDecryptor.decrypt(sealed, ageDecryptor.parseHeader(sealed), { identities })).equals(plain));
   }
-  const pw = ageEncrypt(Buffer.from('hello'), { passphrase: 'pw', workFactor: 10 });
+  const pw = ageEncrypt(Buffer.from('hello'), { passphrase: 'pw', workFactor: 15 });
   const go = spawnSync('age', ['--decrypt', '-j', 'batchpass'], { input: pw, env: { ...process.env, AGE_PASSPHRASE: 'pw' } });
   assert.equal(go.stdout.toString(), 'hello');
 });
@@ -72,7 +72,7 @@ test('encrypt -> Reader open -> decrypt keeps the digest; the outline is what wa
 test('a passphrase envelope, no outline, and the structure copy', async () => {
   const dir = tmp();
   const env = join(dir, 'p.mocae');
-  const out = await encryptPackage({ pkg: structured, out: env, passphrase: 'pw', workFactor: 10, outline: [], structure: true });
+  const out = await encryptPackage({ pkg: structured, out: env, passphrase: 'pw', workFactor: 15, outline: [], structure: true });
   assert.equal(out.outline, undefined);
   assert.match(out.warnings[0], /concept graph/);
   const marker = JSON.parse(new AdmZip(env).getEntry('moca-enc.json').getData().toString());
@@ -120,7 +120,7 @@ test('decrypt refuses a wrong key and writes nothing', async () => {
 test('the CLI reads a passphrase only from the environment', () => {
   const dir = tmp();
   const bin = fileURLToPath(new URL('../bin/moca-sign.js', import.meta.url));
-  const r = spawnSync(process.execPath, [bin, 'encrypt', supportKb, '-o', join(dir, 'p.mocae'), '--passphrase-env', 'MOCA_TEST_PW', '--work-factor', '10'], { env: { ...process.env, MOCA_TEST_PW: 'pw' } });
+  const r = spawnSync(process.execPath, [bin, 'encrypt', supportKb, '-o', join(dir, 'p.mocae'), '--passphrase-env', 'MOCA_TEST_PW', '--work-factor', '15'], { env: { ...process.env, MOCA_TEST_PW: 'pw' } });
   assert.equal(r.status, 0, r.stderr.toString());
   const missing = spawnSync(process.execPath, [bin, 'encrypt', supportKb, '-o', join(dir, 'q.mocae'), '--passphrase-env', 'MOCA_TEST_UNSET']);
   assert.equal(missing.status, 2);

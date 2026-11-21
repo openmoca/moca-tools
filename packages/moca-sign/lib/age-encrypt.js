@@ -63,6 +63,18 @@ function stanza(type, args, body) {
   return `-> ${[type, ...args].join(' ')}\n${lines.join('\n')}\n`;
 }
 
+/** The lowest scrypt work factor moca-sign writes: lower makes a passphrase cheap to guess. */
+export const MIN_WORK_FACTOR = 15;
+/** The highest: Readers refuse a work factor over 20 by default (Reader contract §3, maxScryptWorkFactor). */
+export const MAX_WORK_FACTOR = 20;
+
+/** Throws EncryptError unless the scrypt work factor is a whole number from 15 to 20. */
+export function checkWorkFactor(workFactor) {
+  if (!Number.isInteger(workFactor) || workFactor < MIN_WORK_FACTOR || workFactor > MAX_WORK_FACTOR) {
+    throw new EncryptError(`the scrypt work factor must be a whole number from ${MIN_WORK_FACTOR} to ${MAX_WORK_FACTOR} (Readers refuse more than ${MAX_WORK_FACTOR})`);
+  }
+}
+
 /**
  * Encrypts bytes to age v1.
  * @param {Uint8Array} plain
@@ -76,7 +88,7 @@ export function ageEncrypt(plain, { recipients = [], passphrase, workFactor = 18
   const nonce12 = Buffer.alloc(12);
   let stanzas = '';
   if (passphrase !== undefined) {
-    if (!Number.isInteger(workFactor) || workFactor < 1 || workFactor > 30) throw new EncryptError('the scrypt work factor must be a whole number from 1 to 30');
+    checkWorkFactor(workFactor);
     const salt = randomBytes(16);
     const N = 2 ** workFactor;
     const key = scryptSync(Buffer.from(passphrase, 'utf8'), Buffer.concat([Buffer.from('age-encryption.org/v1/scrypt'), salt]), 32, { N, r: 8, p: 1, maxmem: 129 * 8 * N + 1024 * 1024 });

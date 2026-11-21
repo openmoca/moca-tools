@@ -1,11 +1,13 @@
 // moca-sign encrypt and decrypt: envelopes (moca-spec encrypted packages). The Producer side: it reads plain
 // packages and writes envelopes, and decrypt writes plaintext to disk on purpose (the no-files rule of encrypted
 // packages §5.4 binds Readers, not this tool).
-import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { basename, dirname, join } from 'node:path';
 import AdmZip from 'adm-zip';
 import { readPackage, formatText } from '@openmoca/moca-core';
 import { ageDecryptor } from '@openmoca/moca-core/age';
-import { ageEncrypt, EncryptError } from './age-encrypt.js';
+import { ageEncrypt, checkWorkFactor, EncryptError } from './age-encrypt.js';
 
 /** Manifest properties an outline may carry (encrypted packages §3). */
 export const OUTLINE_FIELDS = Object.freeze(['id', 'version', 'title', 'description', 'language', 'license', 'publisher', 'mocaVersion', 'distribution', 'translations', 'tags', 'apps']);
@@ -24,6 +26,21 @@ function packageBytes(target, result) {
     zip.getEntry(entry.path).header.time = FIXED_TIME;
   }
   return zip.toBuffer();
+}
+
+/**
+ * Writes a file through a temporary name beside it. `check(tmp)` runs on the temporary file; the file is renamed into
+ * place only if it returns, and the temporary file is removed whatever happens. Nothing is left at `out` on failure.
+ */
+async function writeChecked(out, bytes, check = async () => {}) {
+  const tmp = join(dirname(out), `.${randomBytes(6).toString('hex')}.partial-${basename(out)}`);
+  try {
+    writeFileSync(tmp, bytes, { flag: 'wx' });
+    await check(tmp);
+    renameSync(tmp, out);
+  } finally {
+    rmSync(tmp, { force: true });
+  }
 }
 
 /** Checks the outline field list a user chose. `[]` writes no outline. */
@@ -45,6 +62,7 @@ export function parseOutlineFields(list) {
 export async function encryptPackage({ pkg, out, recipients = [], passphrase, workFactor, outline = DEFAULT_OUTLINE, structure = false, cover = false, force = false }) {
   if (!existsSync(pkg)) throw new EncryptError(`${pkg} does not exist`);
   if (existsSync(out) && !force) throw new EncryptError(`${out} already exists; pass --force to replace it`);
+  if (passphrase !== undefined) checkWorkFactor(workFactor ?? 18);
   const result = await readPackage(pkg);
   if (result.envelope) throw new EncryptError(`${pkg} is already an envelope`);
   if (!result.valid) {
@@ -78,16 +96,16 @@ export async function encryptPackage({ pkg, out, recipients = [], passphrase, wo
     add(COVER_NAMES[first.type], result.source.read(first.src), false);
     warnings.push(`${COVER_NAMES[first.type]} is readable without a key: anyone can see the cover`);
   }
-  writeFileSync(out, envelope.toBuffer());
-
   // Check what was written the way a Reader will read it: without a key, only E001 (the entries and marker pass);
-  // with the passphrase, it opens to the same digest.
-  const shape = await readPackage(out);
-  if (shape.diagnostics.map((d) => d.code).join() !== 'E001_ENCRYPTED_NO_KEY') throw new EncryptError(`the envelope failed its own check:\n${formatText(shape.diagnostics)}`);
-  if (passphrase !== undefined) {
-    const check = await readPackage(out, { decryptor: ageDecryptor, keyProvider: () => ({ passphrase }), limits: { maxScryptWorkFactor: Math.max(20, workFactor ?? 18) } });
-    if (!check.envelope?.opened || check.digest !== result.digest) throw new EncryptError(`the envelope failed its own check:\n${formatText(check.diagnostics)}`);
-  }
+  // with the passphrase, it opens to the same digest. Only an envelope that passes is moved to `out`.
+  await writeChecked(out, envelope.toBuffer(), async (written) => {
+    const shape = await readPackage(written);
+    if (shape.diagnostics.map((d) => d.code).join() !== 'E001_ENCRYPTED_NO_KEY') throw new EncryptError(`the envelope failed its own check, so nothing was written:\n${formatText(shape.diagnostics)}`);
+    if (passphrase !== undefined) {
+      const check = await readPackage(written, { decryptor: ageDecryptor, keyProvider: () => ({ passphrase }), limits: { maxScryptWorkFactor: 20 } });
+      if (!check.envelope?.opened || check.digest !== result.digest) throw new EncryptError(`the envelope failed its own check, so nothing was written:\n${formatText(check.diagnostics)}`);
+    }
+  });
   return { out, digest: result.digest, outline: marker.outline, warnings };
 }
 
@@ -105,7 +123,7 @@ export async function decryptEnvelope({ envelope, out, identities, passphrase, f
   if (!result.envelope.opened) throw new EncryptError(`the envelope did not open:\n${formatText(result.diagnostics)}`);
   const bytes = new Uint8Array(new AdmZip(envelope).getEntry('package.age').getData());
   const header = ageDecryptor.parseHeader(bytes, { maxScryptWorkFactor });
-  writeFileSync(out, await ageDecryptor.decrypt(bytes, header, key));
+  await writeChecked(out, await ageDecryptor.decrypt(bytes, header, key));
   return { out, digest: result.digest, valid: result.valid };
 }
 
