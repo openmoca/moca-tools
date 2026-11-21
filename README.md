@@ -48,6 +48,26 @@ depends on it.
    anywhere.
 6. Publish a GitHub release whose notes are the changelog section.
 
+## Standards
+
+What these tools use, and how strongly. **Follow** means the tools implement it
+and the tests check it where they can.
+
+| Standard | Where | How strongly |
+| --- | --- | --- |
+| MOCA ([moca-spec](https://github.com/openmoca/moca-spec)) 0.7 | every tool, through the reference Reader `@openmoca/moca-core` | follow |
+| [JSON Schema 2020-12](https://json-schema.org/draft/2020-12) | trust roots and manifests, checked against moca-spec's schemas | follow |
+| [Ed25519](https://www.rfc-editor.org/rfc/rfc8032) (RFC 8032) and [in-toto Statement v1](https://github.com/in-toto/attestation) in [DSSE](https://github.com/secure-systems-lab/dsse) envelopes | `moca-sign`: package, review and issued-copy attestations | follow |
+| [Sigstore](https://www.sigstore.dev/) bundles | `moca-sign sign --sigstore`, `review --sigstore`; `verify` compares issuer and subject exactly | follow |
+| [age v1](https://age-encryption.org/v1) (X25519 and scrypt recipients) | `moca-sign encrypt` and `decrypt`, `moca-index --envelope` | follow |
+| [ZIP](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT) (stored and deflated entries) | `moca-lint pack` and `extract`, `.mocai` sidecars | follow |
+| [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) | `moca-lint lint --format sarif`, and the HTTP endpoint | follow |
+| [SKOS](https://www.w3.org/TR/skos-reference/) in [RDF 1.1 Turtle](https://www.w3.org/TR/turtle/) | `moca-lint --vocabulary` | follow (the named terms) |
+| [Fetch](https://fetch.spec.whatwg.org/) `Request` and `Response` | `@openmoca/moca-lint/http` | follow |
+| [ONNX](https://onnx.ai/) | `moca-embed`: the standard embedding models | follow |
+
+Built with the help of AI assistants; every change is reviewed and accepted by the maintainer.
+
 ## Licence
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
