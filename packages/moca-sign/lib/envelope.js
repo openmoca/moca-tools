@@ -1,7 +1,7 @@
 // moca-sign encrypt and decrypt: envelopes (moca-spec encrypted packages). The Producer side: it reads plain
 // packages and writes envelopes, and decrypt writes plaintext to disk on purpose (the no-files rule of encrypted
 // packages §5.4 binds Readers, not this tool).
-import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { basename, dirname, join } from 'node:path';
 import AdmZip from 'adm-zip';
@@ -19,7 +19,12 @@ const FIXED_TIME = new Date(Date.UTC(1980, 0, 1));
 
 /** The .moca bytes of a package: an archive as it is, or a directory packed as moca-lint pack does. */
 function packageBytes(target, result) {
-  if (statSync(target).isFile()) return readFileSync(target);
+  // One read, no check beforehand: a directory is the EISDIR case, so the path cannot change between a check and the read.
+  try {
+    return readFileSync(target);
+  } catch (e) {
+    if (e?.code !== 'EISDIR') throw e;
+  }
   const zip = new AdmZip();
   for (const entry of result.source.list()) {
     zip.addFile(entry.path, result.source.read(entry.path));

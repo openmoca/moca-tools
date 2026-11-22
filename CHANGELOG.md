@@ -23,6 +23,8 @@ For moca-spec 0.7.0 ([moca-spec#5](https://github.com/openmoca/moca-spec/issues/
 - `moca-sign keygen` checks the key id, never replaces a key, writes the
   private key readable by its owner only, and checks the trust root before
   writing anything.
+- `moca-sign encrypt` reads the package path once, with no check beforehand, so the path cannot change between a check
+  and the read; a directory is packed as before.
 - `moca-sign encrypt`: the scrypt work factor is 15 to 20. The envelope is
   checked before it is moved into place; nothing is left when the check fails.
 - `moca-sign issue` requires the original to carry a publisher signature for
