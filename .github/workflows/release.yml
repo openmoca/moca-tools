@@ -21,8 +21,8 @@ permissions:
   contents: read
 
 env:
-  # Used by the dry run only, while the packages link moca-core with file:. Move it with test.yml's pin.
-  MOCA_READER_TYPESCRIPT_REF: 0f5256c50e8e46321cb297b6c175cccefb700366  # release-0.7.0 (log.md heading fix merged); v0.7.0 once tagged
+  # Used by the dry run only (moca-core now comes from npm). Move it with test.yml's pin.
+  MOCA_READER_TYPESCRIPT_REF: 26c617b8a3789d30d89ce1af6a2e11c983e475f8  # v0.7.0
 
 jobs:
   check:
