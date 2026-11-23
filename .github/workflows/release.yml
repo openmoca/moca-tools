@@ -63,11 +63,17 @@ jobs:
         working-directory: moca-reader-typescript
       - run: npm ci
         working-directory: moca-tools
-      - name: Pack each package (dry run)
+      - name: Pack each package, then publish dry run unless its version is already on npm
         working-directory: moca-tools
         run: |
           for p in moca-embed moca-sign moca-lint moca-index; do
-            npm publish --dry-run --access public -w "@openmoca/$p"
+            npm pack --dry-run -w "@openmoca/$p"
+            version=$(node -p "require('./packages/$p/package.json').version")
+            if [ -n "$(npm view "@openmoca/$p@$version" version 2>/dev/null)" ]; then
+              echo "::notice::@openmoca/$p@$version is already on npm; skipping the publish dry run"
+            else
+              npm publish --dry-run --access public -w "@openmoca/$p"
+            fi
           done
 
   publish:
